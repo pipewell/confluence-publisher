@@ -69,7 +69,8 @@ class ConfluenceClient:
         reraise=True,
     )
     def _request(self, method: str, url: str, **kwargs) -> requests.Response:
-        response = self._session.request(method, url, timeout=30, **kwargs)
+        kwargs.setdefault("timeout", 30)
+        response = self._session.request(method, url, **kwargs)
         if response.status_code == 429 or response.status_code >= 500:
             raise RetryableError(
                 f"HTTP {response.status_code} from {url} - will retry",
@@ -162,17 +163,16 @@ class ConfluenceClient:
             url = f"{self.base_url}/rest/api/content/{page_id}/child/attachment"
         else:
             url = f"{self.base_url}/wiki/api/v2/pages/{page_id}/attachments"
-        # Setting Content-Type: None removes the session's application/json default,
-        # letting requests auto-set the correct multipart/form-data boundary.
-        # Using self._session preserves the configured cert for DC mTLS.
-        r = self._session.post(
+        # Content-Type: None removes the session's application/json default so
+        # requests can auto-set the correct multipart/form-data boundary.
+        # Routing through _request gives 429/5xx retry coverage.
+        self._request(
+            "POST",
             url,
             files={"file": (filename, data, mime_type)},
             headers={"Content-Type": None, "X-Atlassian-Token": "nocheck"},
             timeout=60,
         )
-        if r.status_code not in (200, 201):
-            r.raise_for_status()
 
     def _resolve_space_id(self, space_key: str) -> str:
         """Resolve a space key to its numeric ID (Cloud only, cached)."""

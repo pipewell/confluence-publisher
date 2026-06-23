@@ -204,6 +204,92 @@ def test_auto_create_passes_space_and_parent(tmp_path):
     assert kwargs["title"] == "Architecture"
 
 
+def test_auto_create_with_images_uses_placeholder_then_updates(tmp_path):
+    """New pages with local images: create with placeholder, upload, then update body."""
+    data = {
+        "version": 1,
+        "defaults": {"space_id": "TEST"},
+        "pages": {"docs/arch.md": {"title": "Architecture"}},
+    }
+    (tmp_path / "confluence-manifest.yaml").write_text(yaml.dump(data))
+    (tmp_path / "docs").mkdir()
+    img_dir = tmp_path / "docs" / "images"
+    img_dir.mkdir()
+    (img_dir / "fig.png").write_bytes(b"\x89PNG")
+    (tmp_path / "docs/arch.md").write_text("# Arch\n\n![fig](images/fig.png)\n")
+    manifest = load_manifest(tmp_path)
+    client = make_client()
+    client.create_page.return_value = "999"
+
+    summary = publish_pages(manifest, ["docs/arch.md"], client, "sha", tmp_path)
+
+    assert summary.succeeded
+    # create_page must use a safe placeholder body (no attachment references)
+    _, create_kwargs = client.create_page.call_args
+    assert "ri:attachment" not in create_kwargs["body"]
+    assert "in progress" in create_kwargs["body"].lower() or "momentarily" in create_kwargs["body"].lower()
+    # attachment uploaded
+    client.upload_attachment.assert_called_once()
+    # update_page called with full body containing the attachment ref
+    client.update_page.assert_called_once()
+    _, update_kwargs = client.update_page.call_args
+    assert "ri:attachment" in update_kwargs["body"]
+    assert update_kwargs["version"] == 2
+
+
+def test_auto_create_no_attachments_single_step(tmp_path):
+    """New pages with no attachments publish in a single create call."""
+    data = {
+        "version": 1,
+        "defaults": {"space_id": "TEST"},
+        "pages": {"docs/arch.md": {"title": "Architecture"}},
+    }
+    (tmp_path / "confluence-manifest.yaml").write_text(yaml.dump(data))
+    (tmp_path / "docs").mkdir()
+    (tmp_path / "docs/arch.md").write_text("# Arch\n\nPlain text only.\n")
+    manifest = load_manifest(tmp_path)
+    client = make_client()
+    client.create_page.return_value = "999"
+
+    summary = publish_pages(manifest, ["docs/arch.md"], client, "sha", tmp_path)
+
+    assert summary.succeeded
+    client.create_page.assert_called_once()
+    # No extra update_page call needed — full body was passed to create_page
+    client.update_page.assert_not_called()
+    _, create_kwargs = client.create_page.call_args
+    assert "<h1>Arch</h1>" in create_kwargs["body"]
+
+
+def test_auto_create_attachment_failure_leaves_placeholder(tmp_path):
+    """Upload failure on new page: page_id saved, no hash written, update_page not called."""
+    data = {
+        "version": 1,
+        "defaults": {"space_id": "TEST"},
+        "pages": {"docs/arch.md": {"title": "Architecture"}},
+    }
+    (tmp_path / "confluence-manifest.yaml").write_text(yaml.dump(data))
+    (tmp_path / "docs").mkdir()
+    img_dir = tmp_path / "docs" / "images"
+    img_dir.mkdir()
+    (img_dir / "fig.png").write_bytes(b"\x89PNG")
+    (tmp_path / "docs/arch.md").write_text("# Arch\n\n![fig](images/fig.png)\n")
+    manifest = load_manifest(tmp_path)
+    client = make_client()
+    client.create_page.return_value = "999"
+    client.upload_attachment.side_effect = Exception("API error")
+
+    summary = publish_pages(manifest, ["docs/arch.md"], client, "sha", tmp_path)
+
+    assert not summary.succeeded
+    # page_id recorded so next run goes through update path, not recreation
+    assert manifest.pages["docs/arch.md"].page_id == "999"
+    # Hash NOT saved — next run will retry the full publish
+    assert manifest.pages["docs/arch.md"].last_published_hash is None
+    # Full body NOT pushed — page stays with safe placeholder
+    client.update_page.assert_not_called()
+
+
 def test_auto_create_dry_run_does_not_call_api(tmp_path):
     data = {
         "version": 1,

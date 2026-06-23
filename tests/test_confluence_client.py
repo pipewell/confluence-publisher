@@ -118,18 +118,19 @@ def test_resolve_space_id_not_found():
 def test_upload_attachment_cloud():
     client = make_client("cloud")
 
-    with patch.object(client._session, "post") as mock_post:
-        mock_post.return_value = mock_response(200, {})
+    with patch.object(client, "_request") as mock_req:
+        mock_req.return_value = mock_response(200, {})
         client.upload_attachment("123", "fig.png", b"\x89PNG", "image/png")
 
-    mock_post.assert_called_once()
-    url = mock_post.call_args[0][0]
+    mock_req.assert_called_once()
+    url = mock_req.call_args[0][1]   # _request("POST", url, ...)
     assert "/wiki/api/v2/pages/123/attachments" in url
-    headers = mock_post.call_args[1]["headers"]
+    kwargs = mock_req.call_args[1]
+    headers = kwargs["headers"]
     assert "X-Atlassian-Token" in headers
-    # Content-Type set to None so requests strips the session default and auto-sets multipart
+    # Content-Type: None lets requests auto-set the correct multipart boundary
     assert headers.get("Content-Type") is None
-    files = mock_post.call_args[1]["files"]
+    files = kwargs["files"]
     assert files["file"][0] == "fig.png"
     assert files["file"][1] == b"\x89PNG"
 
@@ -137,32 +138,31 @@ def test_upload_attachment_cloud():
 def test_upload_attachment_dc():
     client = make_client("dc")
 
-    with patch.object(client._session, "post") as mock_post:
-        mock_post.return_value = mock_response(200, {})
+    with patch.object(client, "_request") as mock_req:
+        mock_req.return_value = mock_response(200, {})
         client.upload_attachment("123", "fig.png", b"data", "image/png")
 
-    url = mock_post.call_args[0][0]
+    url = mock_req.call_args[0][1]
     assert "/rest/api/content/123/child/attachment" in url
 
 
-def test_upload_attachment_uses_session_not_bare_requests():
-    """The session carries the configured cert (DC mTLS); bypassing it breaks cert auth."""
+def test_upload_attachment_uses_request_for_retry():
+    """Attachments must route through _request so the 429/5xx retry policy applies."""
     client = make_client("dc")
 
-    with patch.object(client._session, "post", return_value=mock_response(200, {})) as mock_sess:
-        with patch("confluence_publisher.confluence_client.requests.post") as mock_bare:
+    with patch.object(client, "_request", return_value=mock_response(200, {})) as mock_req:
+        with patch.object(client._session, "post") as mock_bare_post:
             client.upload_attachment("123", "fig.png", b"data", "image/png")
 
-    mock_sess.assert_called_once()
-    mock_bare.assert_not_called()
+    mock_req.assert_called_once()
+    mock_bare_post.assert_not_called()
 
 
 def test_upload_attachment_raises_on_error():
     client = make_client("cloud")
 
-    with patch.object(client._session, "post") as mock_post:
-        bad = mock_response(400, {})
-        mock_post.return_value = bad
+    with patch.object(client, "_request") as mock_req:
+        mock_req.side_effect = requests.HTTPError("400 Bad Request")
         with pytest.raises(requests.HTTPError):
             client.upload_attachment("123", "fig.png", b"data", "image/png")
 

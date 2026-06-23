@@ -200,14 +200,25 @@ def publish_pages(
                 ))
                 continue
 
+            has_attachments = bool(result.images or result.mermaid_blocks)
             space_key = entry.space_id or manifest.defaults.get("space_id", "")
             parent_id = entry.parent_id or manifest.defaults.get("parent_id", "") or ""
+
+            # When attachments are needed, create with a safe placeholder body so
+            # the page never contains unresolvable attachment references. The body
+            # is replaced in a second API call once all attachments are uploaded.
+            initial_body = (
+                "<p><em>Page content is being published from GitHub. "
+                "This message will be replaced momentarily.</em></p>"
+                if has_attachments
+                else result.full_body
+            )
             try:
                 page_id = client.create_page(
                     title=entry.title,
                     space_key=space_key,
                     parent_id=parent_id,
-                    body=result.full_body,
+                    body=initial_body,
                 )
             except Exception as exc:
                 summary.results.append(PageResult(
@@ -217,27 +228,46 @@ def publish_pages(
                 ))
                 continue
 
-            # page_id must be saved immediately so the manifest records it
-            # even if attachment upload fails (avoids re-creating the page on next run)
+            # Save page_id before touching attachments so reruns skip creation.
             entry.page_id = page_id
 
-            upload_errors = (
-                _upload_images(client, page_id, result.images, repo_root)
-                + _upload_mermaid(client, page_id, result.mermaid_blocks)
-            )
-            if upload_errors:
-                for msg in upload_errors:
-                    logger.error("Attachment error on '%s': %s", file_path, msg)
+            if has_attachments:
+                upload_errors = (
+                    _upload_images(client, page_id, result.images, repo_root)
+                    + _upload_mermaid(client, page_id, result.mermaid_blocks)
+                )
+                if upload_errors:
+                    for msg in upload_errors:
+                        logger.error("Attachment error on '%s': %s", file_path, msg)
+                        summary.results.append(PageResult(
+                            file_path=file_path,
+                            status="error",
+                            message=msg,
+                        ))
+                    # Page exists with safe placeholder; next run retries via update path.
+                    continue
+
+                try:
+                    client.update_page(
+                        page_id=page_id,
+                        title=entry.title,
+                        body=result.full_body,
+                        version=2,  # page was created at v1
+                        commit_sha=commit_sha,
+                    )
+                except Exception as exc:
                     summary.results.append(PageResult(
                         file_path=file_path,
                         status="error",
-                        message=msg,
+                        message=f"Failed to update new page body after attachment upload: {exc}",
                     ))
-                # Don't record a published hash — next run will retry attachments
-                continue
+                    continue
+
+                entry.last_published_version = 2
+            else:
+                entry.last_published_version = 1
 
             entry.last_published_hash = content_hash(result.body)
-            entry.last_published_version = 1
             entry.last_published_commit = commit_sha
 
             logger.info("Created '%s' -> page %s", file_path, page_id)
