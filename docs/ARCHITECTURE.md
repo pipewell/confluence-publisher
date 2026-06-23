@@ -1,203 +1,242 @@
 # Architecture
 
-## System Diagram
+---
+
+## System diagram
 
 ```
 GitHub Repository
 │
-├── docs/**/*.md          (source files)
-├── confluence-manifest.yaml
+├── docs/**/*.md                 (source files — engineers write here)
+├── confluence-manifest.yaml     (page identity + published state)
 └── .github/workflows/
     └── publish-to-confluence.yml
-             │
-             │  on push to main (paths filter)
-             ▼
+              │
+              │  on: push to main (paths filter) | workflow_dispatch | cron
+              ▼
     GitHub Actions Runner
-             │
-             │  python -m confluence_publisher sync --changed-files ...
-             ▼
-    ┌─────────────────────────────────────────────────┐
-    │              confluence-publisher CLI            │
-    │                                                 │
-    │  1. Load manifest + config                       │
-    │  2. Resolve changed files against manifest       │
-    │  3. For each file:                               │
-    │     a. Parse Markdown → AST (mistletoe)         │
-    │     b. Walk AST → Confluence Storage Format      │
-    │     c. Hash rendered content                    │
-    │     d. Compare against current Confluence page   │
-    │     e. Skip if unchanged                        │
-    │     f. Check for manual edit conflict            │
-    │     g. Upload attachments (Phase 2)             │
-    │     h. PUT page with version + 1                │
-    │  4. Exit 0 (success) or 1 (any error)           │
-    └─────────────────────────────────────────────────┘
-             │
-             │  Confluence REST API v2
-             ▼
-    Confluence Cloud
-    └── Target Space
-        └── Pages (identified by page_id)
+              │
+              │  confluence-publisher check | sync | validate-manifest
+              ▼
+    ┌──────────────────────────────────────────────────────┐
+    │                confluence-publisher CLI               │
+    │                                                      │
+    │  1. Load manifest                                    │
+    │  2. Resolve changed files against manifest           │
+    │  3. For each file:                                   │
+    │     a. Parse Markdown to AST (mistletoe)             │
+    │     b. Walk AST to Confluence Storage Format         │
+    │     c. Pre-flight: verify all local images exist     │
+    │     d. Hash rendered content                         │
+    │     e. Skip if hash matches last_published_hash      │
+    │     f. Check for manual edit conflict                │
+    │     g. Upload images and Mermaid PNGs as attachments │
+    │     h. Create or update page via REST API            │
+    │     i. Write back page_id and hash to manifest       │
+    │  4. Exit 0 (all succeeded) or 1 (any error)          │
+    └──────────────────────────────────────────────────────┘
+              │
+              │  Confluence REST API (Cloud v2 or DC v1)
+              ▼
+    Confluence
+    └── Target space
+        └── Pages identified by page_id (never by title)
 ```
 
 ---
 
-## Component Breakdown
+## Components
 
-### 1. CLI Entry Point (`confluence_publisher/cli.py`)
+### 1. CLI (`confluence_publisher/cli.py`)
 
-- `sync` command: main publish flow
-- `check` command: validate manifest + syntax, no API calls
-- `validate-manifest` command: confirm all page IDs exist in Confluence
-- `dry-run` flag: convert and log, no publish
+Entry point built with `click`. Three commands:
 
-### 2. Manifest Loader (`confluence_publisher/manifest.py`)
+| Command | Description |
+|---|---|
+| `sync` | Main publish flow. Converts and publishes changed (or all) pages |
+| `check` | Validates manifest and syntax without making any API calls |
+| `validate-manifest` | Calls Confluence API to confirm all `page_id` values still exist |
 
-Reads `confluence-manifest.yaml`. Returns a dict of `{file_path: PageEntry}`.
+Key flags: `--dry-run`, `--changed-files`, `--strict-conflicts`.
+
+### 2. Manifest loader (`confluence_publisher/manifest.py`)
+
+Reads and writes `confluence-manifest.yaml` at the repository root.
 
 ```python
 @dataclass
 class PageEntry:
-    page_id: str
-    space_id: str
-    parent_id: str
+    page_id: str | None
+    space_id: str | None
+    parent_id: str | None
     title: str
-    last_published_hash: str | None   # written back after each successful publish
-    last_published_version: int | None
+    last_published_hash: str | None      # written back after each successful publish
+    last_published_version: int | None   # used for edit-conflict detection
+    last_published_commit: str | None    # informational
 ```
 
-The manifest is the only persistent state. After a successful publish, the tool writes back `last_published_hash` and `last_published_version` and commits the update (or writes to a sidecar file - see open question OQ-03).
+The manifest is the only persistent state. After a successful publish the tool writes back
+`last_published_hash`, `last_published_version`, and `last_published_commit`, then commits
+the update with `[skip ci]` in the message.
 
 ### 3. Converter (`confluence_publisher/converter.py`)
 
-Uses `mistletoe` with a custom `ConfluenceRenderer` that walks the AST and emits Confluence Storage Format XML.
+Uses `mistletoe` with a custom `ConfluenceRenderer` that walks the AST and emits Confluence
+Storage Format XML.
 
 ```
 MarkdownDocument
-  └── Heading → <h1>, <h2> ...
-  └── Paragraph → <p>
-  └── CodeFence → <ac:structured-macro ac:name="code">
-                    <ac:parameter ac:name="language">python</ac:parameter>
-                    <ac:plain-text-body><![CDATA[...]]></ac:plain-text-body>
-                  </ac:structured-macro>
-  └── Table → <table><tbody><tr><td> ...
-  └── Image → (Phase 2) replaced with attachment reference
-  └── Link → <a href="..."> or (Phase 2) <ac:link> for internal
-  └── UnknownNode → raise ConversionError
+  Heading          ->  <h1>, <h2>, ..., <h6>
+  Paragraph        ->  <p>
+  Bold / Italic    ->  <strong>, <em>
+  InlineCode       ->  <code>
+  CodeFence        ->  <ac:structured-macro ac:name="code">
+                         <ac:parameter ac:name="language">python</ac:parameter>
+                         <ac:plain-text-body><![CDATA[...]]></ac:plain-text-body>
+                       </ac:structured-macro>
+  Table            ->  <table><tbody><tr><th>/<td>...</td></tr></tbody></table>
+  Image (local)    ->  <ac:image><ri:attachment ri:filename="..."/></ac:image>
+  Image (remote)   ->  <ac:image><ri:url ri:value="..."/></ac:image>
+  CodeFence mermaid ->  <ac:image><ri:attachment ri:filename="mermaid-{n}.png"/></ac:image>
+  Link (external)  ->  <a href="...">
+  Link (internal)  ->  <ac:link><ri:page ri:content-id="..."/></ac:link>
+  UnknownNode      ->  raises ConversionError (build fails)
 ```
 
-The renderer is the primary engineering surface of the project. Each supported node type is a discrete, testable method.
+`convert()` returns a `ConversionResult`:
+- `body`: the rendered Storage Format (used for content hash and deduplication)
+- `full_body`: info banner prepended to `body` (what actually gets published)
+- `images`: list of local image paths to upload as attachments
+- `mermaid_blocks`: list of Mermaid source strings to render to PNG
 
-### 4. Confluence Client (`confluence_publisher/confluence_client.py`)
+XML safety:
+- `_escape_attr()` escapes `&`, `<`, `>`, and `"` in attribute values
+- `_escape_cdata()` splits `]]>` sequences so they cannot prematurely close CDATA sections
 
-Thin wrapper around `requests`. All API calls go through here. Supports both Confluence Data Center (current) and Cloud (post-migration), selected by `CONFLUENCE_MODE` config.
+### 4. Confluence client (`confluence_publisher/confluence_client.py`)
 
-```python
-class ConfluenceClient:
-    def __init__(self, base_url: str, token: str, mode: str, email: str = None, pem_path: str = None):
-        self.mode = mode  # "dc" or "cloud"
-        self._session = self._build_session(token, email, pem_path)
+Thin wrapper around `requests`. Supports both Cloud (REST API v2, Basic Auth) and Data Center
+(REST API v1, Bearer PAT, optional mTLS client certificate). Mode is selected via
+`CONFLUENCE_MODE` configuration.
 
-    def _build_session(self, token, email, pem_path) -> requests.Session:
-        session = requests.Session()
-        if self.mode == "dc":
-            session.headers["Authorization"] = f"Bearer {token}"
-            if pem_path:
-                session.cert = pem_path      # dynamic path from tempfile.mkstemp(), not /tmp/fixed.pem
-        else:  # cloud
-            encoded = base64.b64encode(f"{email}:{token}".encode()).decode()
-            session.headers["Authorization"] = f"Basic {encoded}"
-        return session
+All API calls go through `_request()`, which:
+- Sets a 30-second timeout by default (callers can override, e.g. attachment uploads use 60s)
+- Raises `RetryableError` on 429 and 5xx responses, triggering the `tenacity` retry decorator
+  (exponential backoff, up to 5 attempts)
 
-    def _api_path(self, resource: str) -> str:
-        if self.mode == "dc":
-            return f"/rest/api/content/{resource}"
-        return f"/wiki/api/v2/{resource}"
-```
+Attachment uploads route through `_request()` for the same retry coverage. `Content-Type: None`
+in the per-request headers lets `requests` set the correct `multipart/form-data` boundary
+without conflicting with the session's default `application/json`.
 
-Public methods (mode-agnostic callers):
-- `get_page(page_id)` - fetch current version + content body
-- `update_page(page_id, title, body, version)` - versioned PUT
-- `create_page(space_key_or_id, parent_id, title, body)` - POST (Phase 2)
-- `upload_attachment(page_id, file_path)` - POST attachment (Phase 2)
-- `_request(method, path, **kwargs)` - shared retry + backoff logic (exponential, max 5 attempts)
+Public methods:
+- `get_page(page_id)` -- fetch current version number and body
+- `create_page(title, space_key, parent_id, body)` -- POST; returns new `page_id`
+- `update_page(page_id, title, body, version, commit_sha)` -- versioned PUT
+- `upload_attachment(page_id, filename, data, mime_type)` -- POST multipart
+- `page_exists(page_id)` -- returns bool; used by `validate-manifest`
 
 ### 5. Publisher (`confluence_publisher/publisher.py`)
 
-Orchestrates the per-page flow: load page, check hash, check edit conflict, upload attachments, update page, write back manifest state.
+Orchestrates the per-page flow for a given list of changed files:
 
-### 6. GitHub Action (`.github/workflows/publish-to-confluence.yml`)
+```
+For each file:
+  1. Look up manifest entry
+  2. Convert Markdown to ConversionResult
+  3. Pre-flight: verify local images exist on disk
+  4. If new page (no page_id):
+       a. Create with placeholder body (if attachments present) or full body
+       b. Save page_id to manifest immediately
+       c. Upload attachments
+       d. If uploads succeed: update page with full body
+       e. If uploads fail: leave placeholder; next run retries via update path
+  5. If existing page:
+       a. Compute content hash; skip if unchanged
+       b. Check for edit conflict
+       c. Upload attachments before updating body
+       d. If uploads fail: skip body update (avoids broken references)
+       e. Update page body
+       f. Write back hash, version, commit SHA to manifest entry
+```
 
-```yaml
+Two top-level functions:
+- `publish_pages()` -- runs the sync flow; returns a `PublishSummary`
+- `check_pages()` -- validates conversion and image existence without API calls
+
+### 6. GitHub Action (`action.yml`)
+
+Composite action at the repository root. Consumers use `uses: donolu/confluence-publisher@v1`.
+
+Inputs: `operation`, `confluence-base-url`, `confluence-mode`, `confluence-email`,
+`confluence-api-token`, `confluence-cert-pem`, `changed-files`, `dry-run`,
+`strict-conflicts`, `install-mermaid`, `python-version`.
+
+The action auto-installs `confluence-publisher` from the same ref it was called on
+(`$GITHUB_ACTION_REF`), so pinning to `@v1.0.4` uses that exact version's code.
+
+### 7. Workflow (`.github/workflows/publish-to-confluence.yml`)
+
+Three jobs:
+
+```
 on:
-  push:
-    branches: [main]
-    paths: ["docs/**/*.md"]
-  workflow_dispatch:
-
-permissions:
-  contents: write         # required for manifest state writeback commit
+  push:       branches: [main], paths: ["docs/**/*.md"]
+  schedule:   cron: '0 7 * * 1-5'   (Mon-Fri 07:00 UTC)
+  workflow_dispatch:  inputs: sync_all, validate_only
 
 jobs:
-  publish:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 2          # needed to diff changed files
+  check:                                  (push and non-validate dispatch only)
+    - checkout
+    - install
+    - confluence-publisher check
 
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
+  publish:                                (runs after check passes)
+    - checkout (fetch-depth: 2)
+    - install
+    - npm install -g @mermaid-js/mermaid-cli
+    - resolve changed files (or all if sync_all=true)
+    - confluence-publisher sync --changed-files f1 --changed-files f2 ...
+    - commit manifest state   (if: always())
 
-      - run: pip install -e .
-
-      - name: Publish changed docs
-        env:
-          CONFLUENCE_API_TOKEN: ${{ secrets.CONFLUENCE_API_TOKEN }}
-          CONFLUENCE_CERT_PEM: ${{ secrets.CONFLUENCE_CERT_PEM }}   # DC only
-          CONFLUENCE_EMAIL: ${{ vars.CONFLUENCE_EMAIL }}             # Cloud only
-          CONFLUENCE_BASE_URL: ${{ vars.CONFLUENCE_BASE_URL }}
-          CONFLUENCE_MODE: ${{ vars.CONFLUENCE_MODE }}               # "dc" or "cloud"
-        run: |
-          CHANGED=$(git diff --name-only HEAD~1 HEAD -- 'docs/**/*.md')
-          python -m confluence_publisher sync --changed-files $CHANGED
-
-      - name: Commit manifest state
-        run: |
-          git config user.name "confluence-publisher-bot"
-          git config user.email "noreply@github.com"
-          git add confluence-manifest.yaml
-          git diff --cached --quiet || git commit -m "chore: update confluence-manifest state [skip ci]"
-          git push
+  validate:                               (schedule and validate_only dispatch only)
+    - checkout
+    - install
+    - confluence-publisher validate-manifest
 ```
+
+The "Commit manifest state" step runs with `if: always()` so `page_id` values written during
+a partially-failed run are committed and available for the retry on the next push.
 
 ---
 
-## Conversion: Supported Node Map
+## Conversion: node support reference
 
 | Markdown | Confluence Storage Format |
 |---|---|
-| `# Heading` | `<h1>` |
+| `# Heading` | `<h1>` through `<h6>` |
 | `**bold**` | `<strong>` |
 | `_italic_` | `<em>` |
 | `` `inline code` `` | `<code>` |
-| `- list item` | `<ul><li>` |
-| `1. list item` | `<ol><li>` |
-| ` ```python ` | `<ac:structured-macro ac:name="code">` |
+| `- item` / `1. item` | `<ul><li>` / `<ol><li>` |
 | `> blockquote` | `<blockquote>` |
-| `[text](url)` | `<a href="url">` |
-| `![alt](img)` | attachment reference (Phase 2) |
-| `[text](other.md)` | `<ac:link>` (Phase 2) |
-| Mermaid block | PNG attachment (Phase 3) |
-| `\| table \|` | `<table>` (Phase 3) |
+| `---` | `<hr/>` |
+| ` ```python ` | `<ac:structured-macro ac:name="code">` |
+| `\| table \|` | `<table>` |
+| `[text](https://...)` | `<a href="...">` |
+| `[text](other.md)` | `<ac:link><ri:page ri:content-id="..."/>` |
+| `![alt](local.png)` | `<ac:image><ri:attachment ri:filename="local.png"/>` |
+| `![alt](https://...)` | `<ac:image><ri:url ri:value="..."/>` |
+| ` ```mermaid ` | `<ac:image><ri:attachment ri:filename="mermaid-{n}.png"/>` |
 
 ---
 
-## File Layout
+## File layout
 
 ```
 confluence-publisher/
+├── action.yml                        # reusable composite GitHub Action
+├── confluence-manifest.yaml          # checked in; updated by the tool
+├── pyproject.toml
 ├── confluence_publisher/
 │   ├── __init__.py
 │   ├── cli.py
@@ -209,22 +248,27 @@ confluence-publisher/
 │   ├── test_converter.py
 │   ├── test_manifest.py
 │   ├── test_publisher.py
+│   ├── test_confluence_client.py
 │   └── fixtures/
 │       └── sample.md
-├── docs/                         (project planning)
-├── confluence-manifest.yaml      (checked in, updated by tool)
-├── confluence-publisher.yaml     (repo-level config)
-├── pyproject.toml
+├── examples/
+│   └── workflows/
+│       ├── publish.yml               # drop-in workflow template
+│       └── pr-preview.yml            # PR dry-run preview with comment
+├── docs/                             # project planning and reference
 └── .github/
     └── workflows/
-        └── publish-to-confluence.yml
+        └── publish-to-confluence.yml # this repository's own workflow
 ```
 
 ---
 
-## Security Considerations
+## Security
 
-- API token lives in GitHub Actions secrets only; never logged.
-- The generated banner on every Confluence page makes provenance explicit.
-- The tool never reads Confluence content back into the build artefact (read is only for version number and hash comparison).
-- No user-supplied content is interpolated into shell commands (all API calls use `requests`, not `subprocess`).
+- The API token lives in GitHub Actions secrets only and is never logged or echoed.
+- The generated info banner on every page makes provenance explicit to Confluence readers.
+- The tool never reads Confluence content back into the build artefact beyond the version
+  number and current page body (used only for hash comparison and conflict detection).
+- No user-supplied content is interpolated into shell commands. All API calls use `requests`,
+  not `subprocess`. The only subprocess call is `mmdc` for Mermaid rendering, which receives
+  only local file paths as arguments.

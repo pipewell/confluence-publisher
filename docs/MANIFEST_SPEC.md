@@ -1,10 +1,14 @@
-# Manifest Specification
+# Manifest specification
+
+---
 
 ## Purpose
 
-The manifest (`confluence-manifest.yaml`) is the authoritative mapping between GitHub Markdown file paths and Confluence pages. It is checked into the repository and is the only source of page identity.
+The manifest (`confluence-manifest.yaml`) is the authoritative mapping between GitHub Markdown
+file paths and Confluence pages. It is checked into the repository and is the only source of
+page identity.
 
-Page IDs, not titles, are used as keys. Titles can change; page IDs cannot.
+Page IDs, not titles, are used as stable identifiers. Titles can change; page IDs cannot.
 
 ---
 
@@ -14,8 +18,8 @@ Page IDs, not titles, are used as keys. Titles can change; page IDs cannot.
 version: 1
 
 defaults:
-  space_id: "~SPACEID"          # Confluence space identifier
-  parent_id: "123456"           # Default parent page for top-level docs
+  space_id: "ENG"            # Confluence space key (DC) or space ID (Cloud)
+  parent_id: "123456"        # Default parent page for top-level docs
 
 pages:
   docs/architecture.md:
@@ -25,7 +29,7 @@ pages:
 
   docs/runbooks/incident-response.md:
     page_id: "789013"
-    parent_id: "789012"         # Override: nested under architecture page
+    parent_id: "789012"      # Override: nested under architecture page
     title: Incident Response Runbook
 
   docs/runbooks/deployment.md:
@@ -33,10 +37,10 @@ pages:
     parent_id: "789012"
     title: Deployment Runbook
 
-  # Entry with no page_id triggers auto-creation (Phase 2+)
   docs/new-feature.md:
     title: New Feature Design
-    # page_id will be written back here after first publish
+    # No page_id: triggers auto-creation on first publish.
+    # The assigned ID is written back here automatically.
 ```
 
 ---
@@ -55,52 +59,61 @@ pages:
 
 | Field | Required | Description |
 |---|---|---|
-| `page_id` | Phase 1: Yes. Phase 2+: No (triggers creation) | Confluence page ID. Survives page renames. |
-| `title` | Yes | Confluence page title. Used on create and update. |
+| `title` | Yes | Confluence page title. Used on create and update. Renaming here renames the page. |
+| `page_id` | No | Confluence page ID. If absent, the page is created automatically on first publish and the ID is written back. |
 | `space_id` | No | Overrides `defaults.space_id` for this page. |
 | `parent_id` | No | Overrides `defaults.parent_id`. Determines page hierarchy. |
 
-### Written back by the tool (do not edit manually)
+### Written back by the tool
 
-| Field | Written by | Description |
-|---|---|---|
-| `last_published_hash` | Publisher | SHA-256 of the last published Storage Format content. Used for skip-if-unchanged. |
-| `last_published_version` | Publisher | Confluence version number at last publish. Used for edit-conflict detection. |
-| `last_published_commit` | Publisher | Git commit SHA at last publish. Informational. |
+Do not edit these fields manually.
+
+| Field | Description |
+|---|---|
+| `page_id` | Written back after auto-creation. Survives page renames in Confluence. |
+| `last_published_hash` | SHA-256 of the last published Storage Format content body. Used for skip-if-unchanged. |
+| `last_published_version` | Confluence version number at last publish. Used for edit-conflict detection. |
+| `last_published_commit` | Git commit SHA at last publish. Informational only. |
 
 ---
 
 ## Rules
 
-1. A file not in the manifest is ignored. The tool does not publish it and does not error.
-2. A file that is in the manifest but does not exist on disk is an error (`--check` catches this).
-3. A `page_id` that does not exist in Confluence is an error caught by `--validate-manifest`.
-4. The `title` field controls the Confluence page title on every publish. Renaming here renames the Confluence page.
-5. Do not use the same `page_id` for two different files. The tool will detect and reject duplicate IDs at startup.
+1. A file not in the manifest is ignored silently. The tool does not publish it and does not error.
+2. A file listed in the manifest that does not exist on disk is a hard error (`--check` catches this).
+3. A `page_id` that does not exist in Confluence is caught by `validate-manifest`.
+4. The `title` field controls the Confluence page title on every publish. Renaming it here renames the Confluence page.
+5. Do not assign the same `page_id` to two different files. The tool detects and rejects duplicate IDs at startup.
 
 ---
 
-## Sidecar vs In-Manifest State
+## Auto-create and attachment safety
 
-The `last_published_*` fields written back by the tool create a question: should the tool commit changes to the manifest file, or write them to a separate sidecar file?
+When a page with no `page_id` contains images or Mermaid diagrams, the publisher uses a
+two-step flow to avoid pages with broken attachment references:
 
-See open question OQ-03 in `DECISIONS.md`.
+1. Create the page with a safe placeholder body.
+2. Write `page_id` to the manifest immediately (so a subsequent failure retries via update,
+   not re-creation).
+3. Upload attachments.
+4. If all uploads succeed: update the page with the real body.
+5. If any upload fails: leave the placeholder. The next push retries from step 3 onwards.
 
 ---
 
-## Example: SearchAudit Pilot
+## Example
 
 ```yaml
 version: 1
 
 defaults:
-  space_id: "~SEARCHAUDIT"
-  parent_id: "100000"           # SearchAudit top-level Confluence page
+  space_id: "ENG"
+  parent_id: "100000"
 
 pages:
   docs/architecture.md:
     page_id: "100001"
-    title: SearchAudit Architecture
+    title: Architecture
 
   docs/etl-pipeline.md:
     page_id: "100002"
@@ -110,4 +123,7 @@ pages:
     page_id: "100003"
     parent_id: "100002"
     title: Redshift Load Runbook
+
+  docs/new-design.md:
+    title: New Design          # page_id written here after first publish
 ```

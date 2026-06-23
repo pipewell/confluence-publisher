@@ -2,32 +2,35 @@
 
 A one-way publishing pipeline that syncs GitHub Markdown files to Confluence pages.
 
-GitHub is the source of truth. Confluence is the generated presentation layer.
+**GitHub is the source of truth. Confluence is the generated presentation layer.**
 
-## Status
-
-Production-ready. Install and use via the reusable GitHub Action or the CLI directly.
+---
 
 ## Quick start
 
-Add a `confluence-manifest.yaml` to your repo and copy one of the example workflows from
-`examples/workflows/`. See [docs/ONBOARDING.md](docs/ONBOARDING.md) for a step-by-step guide.
+1. Add a `confluence-manifest.yaml` to your repository root.
+2. Copy an example workflow from `examples/workflows/` into `.github/workflows/`.
+3. Add the three required secrets/variables to your repository settings.
+4. Push or trigger manually — pages appear in Confluence within minutes.
+
+See [docs/ONBOARDING.md](docs/ONBOARDING.md) for a full step-by-step guide.
 
 ```yaml
 # confluence-manifest.yaml
 defaults:
   space_id: ENG
   parent_id: '123456'
+
 pages:
   docs/architecture.md:
     title: Architecture Overview
-    page_id: '234567'
+    page_id: '234567'         # existing Confluence page ID
   docs/runbook.md:
-    title: Operations Runbook   # no page_id — auto-created on first publish
+    title: Operations Runbook # no page_id — auto-created on first publish
 ```
 
 ```yaml
-# .github/workflows/publish.yml
+# .github/workflows/publish-to-confluence.yml (minimal)
 - uses: donolu/confluence-publisher@v1
   with:
     confluence-base-url: ${{ vars.CONFLUENCE_BASE_URL }}
@@ -35,58 +38,81 @@ pages:
     confluence-email: ${{ vars.CONFLUENCE_EMAIL }}
 ```
 
+---
+
 ## What it does
 
-- Triggered by GitHub Actions on push to `main` when files under `docs/**/*.md` change
+- Triggers on push to `main` when files under `docs/**/*.md` change
 - Converts Markdown to Confluence Storage Format using a custom `mistletoe` renderer
-- Page identity is managed via a checked-in YAML manifest (page IDs, not titles)
-- Auto-creates pages when `page_id` is absent; writes the new ID back via `[skip ci]` commit
+- Manages page identity via a checked-in YAML manifest (page IDs, not titles)
+- Auto-creates pages when `page_id` is absent; writes the new ID back via a `[skip ci]` commit
 - Uploads local images and Mermaid diagrams as page attachments
-- Detects edit conflicts (Confluence version > last published version) and logs or fails
-- Updates are versioned; the Git commit SHA is stored in the Confluence version message
-- Missing images, Mermaid render failures, and upload errors all fail the build
+- Detects edit conflicts (Confluence version ahead of last published) and warns or fails
+- Stores the Git commit SHA in the Confluence version message for traceability
+- Treats missing images, Mermaid render failures, and upload errors as hard build failures
+
+---
 
 ## Failure semantics
 
-All failures are hard errors — the build exits non-zero and CI is red. There are no silent failures.
+All failures exit non-zero. There are no silent failures.
 
 | Failure | Behaviour |
 |---|---|
-| Markdown conversion error (unsupported syntax) | Build fails; page not published |
+| Markdown conversion error | Build fails; page not published |
 | Local image not found on disk | Build fails; page not published (pre-flight check) |
-| `mmdc` not installed (Mermaid diagrams present) | Build fails; page not published |
+| `mmdc` not installed with Mermaid diagrams present | Build fails; page not published |
 | Mermaid render failure | Build fails; page not published |
-| Confluence API error during page create/update | Build fails; manifest unchanged |
-| Attachment upload failure on new page | Build fails; placeholder body stays in Confluence; `page_id` written to manifest; next push retries via the update path (no duplicate page created) |
-| Attachment upload failure on existing page | Build fails; page body not updated; manifest hash unchanged; next push retries |
-| Manual edit conflict (Confluence version > last published) | Warning by default; `--strict-conflicts` makes it a build error in both cases the page is still overwritten with GitHub content |
+| Confluence API error on create or update | Build fails; manifest unchanged |
+| Attachment upload failure on a new page | Build fails; placeholder body stays in Confluence; `page_id` written to manifest; next push retries via the update path (no duplicate page created) |
+| Attachment upload failure on an existing page | Build fails; page body not updated; manifest hash unchanged; next push retries |
+| Manual edit conflict | Warning logged; page overwritten with GitHub content. `--strict-conflicts` makes this a build error while still overwriting |
 
-The "Commit manifest state" step in the workflow uses `if: always()` so `page_id` values are committed
-to the repo even when the publish step exits non-zero. This ensures the retry guarantee holds across CI runs.
+The "Commit manifest state" step uses `if: always()` so `page_id` values are committed
+to the repo even when the publish step exits non-zero, preserving the retry guarantee
+across CI runs.
+
+---
 
 ## Supported Markdown
 
-Headings, bold/italic/code, fenced code blocks (with syntax highlighting), tables,
-ordered/unordered lists, blockquotes, horizontal rules, external and internal links,
-local and external images, Mermaid diagrams (requires `mmdc` in CI).
+| Feature | Support |
+|---|---|
+| Headings H1-H6 | Full |
+| Bold, italic, inline code | Full |
+| Fenced code blocks with language label | Full |
+| Tables | Full |
+| Ordered and unordered lists (including nested) | Full |
+| Blockquotes | Full |
+| Horizontal rules | Full |
+| External links | Full |
+| Internal links between managed `.md` files | Resolved to Confluence page links |
+| Local images | Uploaded as page attachments |
+| External images | Rendered inline |
+| Mermaid diagrams | Rendered to PNG via `mmdc` (requires Node in CI) |
+| Strikethrough | Not supported -- raises a conversion error |
+| Raw HTML | Not supported -- raises a conversion error |
 
-Not supported: strikethrough, raw HTML (both raise `ConversionError` at check time).
+---
+
+## Scope
+
+This tool is intentionally narrow:
+
+- **One-way only.** It does not sync Confluence edits back to GitHub.
+- **Not a real-time mirror.** It runs on push and on a nightly validation schedule.
+- **Not a general-purpose renderer.** It targets the Confluence Storage Format features needed for engineering documentation.
+
+---
 
 ## Documents
 
 | Document | Purpose |
 |---|---|
-| [docs/ONBOARDING.md](docs/ONBOARDING.md) | Step-by-step onboarding guide for new repos |
-| [docs/BRD.md](docs/BRD.md) | Business requirements, goals, and success metrics |
-| [docs/TRD.md](docs/TRD.md) | Technical requirements, constraints, and API notes |
-| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | System design, component breakdown, conversion pipeline |
-| [docs/DELIVERY_PLAN.md](docs/DELIVERY_PLAN.md) | Phased roadmap with scope per phase |
-| [docs/DECISIONS.md](docs/DECISIONS.md) | Decision log and open questions |
-| [docs/MANIFEST_SPEC.md](docs/MANIFEST_SPEC.md) | Page mapping manifest specification |
-
-## Scope Boundary
-
-This tool is not:
-- A bidirectional sync
-- A real-time mirror
-- A general Markdown renderer for arbitrary Confluence content
+| [docs/ONBOARDING.md](docs/ONBOARDING.md) | Step-by-step guide for connecting a new repository |
+| [docs/MANIFEST_SPEC.md](docs/MANIFEST_SPEC.md) | Full manifest format reference |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | System design and component breakdown |
+| [docs/DECISIONS.md](docs/DECISIONS.md) | Decision log with rationale |
+| [docs/BRD.md](docs/BRD.md) | Business requirements and success metrics |
+| [docs/TRD.md](docs/TRD.md) | Technical requirements and API reference |
+| [docs/DELIVERY_PLAN.md](docs/DELIVERY_PLAN.md) | Phased delivery history |
