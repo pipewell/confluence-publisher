@@ -39,6 +39,8 @@ pages:
     last_published_hash: 79fd807c70042375fb18e952b0749844d4f07fd3826bb208277ae7ccce8542ea
     last_published_version: 3
     last_published_commit: bd73b70
+  docs/ONBOARDING.md:
+    title: Onboarding Guide
   test-docs/hello-world.md:
     page_id: '327687'
     title: Hello World (confluence-publisher test)
