@@ -88,9 +88,13 @@ class ConfluenceClient:
         else:
             url = self._url(f"pages/{page_id}?body-format=storage")
             data = self._request("GET", url).json()
+            # Cloud v2 returns body.storage.value when body-format=storage is requested
+            body_val = (
+                data.get("body", {}).get("storage", {}).get("value", "")
+            )
             return {
                 "version": data["version"]["number"],
-                "body": data["body"]["storage"]["value"],
+                "body": body_val,
             }
 
     def update_page(
@@ -112,6 +116,8 @@ class ConfluenceClient:
         else:
             url = self._url(f"pages/{page_id}")
             payload = {
+                "id": page_id,
+                "status": "current",
                 "version": {"number": version, "message": commit_sha},
                 "title": title,
                 "body": {"representation": "storage", "value": body},
