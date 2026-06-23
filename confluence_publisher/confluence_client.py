@@ -162,16 +162,13 @@ class ConfluenceClient:
             url = f"{self.base_url}/rest/api/content/{page_id}/child/attachment"
         else:
             url = f"{self.base_url}/wiki/api/v2/pages/{page_id}/attachments"
-        # Strip Content-Type so requests can set it correctly for multipart/form-data
-        auth_header = self._session.headers.get("Authorization", "")
-        headers = {
-            "Authorization": auth_header,
-            "X-Atlassian-Token": "nocheck",
-        }
-        r = requests.post(
+        # Setting Content-Type: None removes the session's application/json default,
+        # letting requests auto-set the correct multipart/form-data boundary.
+        # Using self._session preserves the configured cert for DC mTLS.
+        r = self._session.post(
             url,
             files={"file": (filename, data, mime_type)},
-            headers=headers,
+            headers={"Content-Type": None, "X-Atlassian-Token": "nocheck"},
             timeout=60,
         )
         if r.status_code not in (200, 201):

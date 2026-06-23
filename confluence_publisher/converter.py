@@ -81,7 +81,7 @@ class ConfluenceRenderer(BaseRenderer):
         return (
             f'<ac:structured-macro ac:name="code">'
             f"{lang_param}"
-            f"<ac:plain-text-body><![CDATA[{code}]]></ac:plain-text-body>"
+            f"<ac:plain-text-body><![CDATA[{_escape_cdata(code)}]]></ac:plain-text-body>"
             f"</ac:structured-macro>"
         )
 
@@ -151,7 +151,7 @@ class ConfluenceRenderer(BaseRenderer):
                     f"<ac:link>"
                     f'<ri:page ri:content-id="{page_id}"/>'
                     f"<ac:plain-text-link-body>"
-                    f"<![CDATA[{inner}]]>"
+                    f"<![CDATA[{_escape_cdata(inner)}]]>"
                     f"</ac:plain-text-link-body>"
                     f"</ac:link>"
                 )
@@ -195,7 +195,18 @@ def _escape(text: str) -> str:
 
 
 def _escape_attr(text: str) -> str:
-    return text.replace("&", "&amp;").replace('"', "&quot;")
+    return (
+        text
+        .replace("&", "&amp;")
+        .replace("<", "&lt;")
+        .replace(">", "&gt;")
+        .replace('"', "&quot;")
+    )
+
+
+def _escape_cdata(text: str) -> str:
+    """Split ]]> so it cannot prematurely close a CDATA section."""
+    return text.replace("]]>", "]]]]><![CDATA[>")
 
 
 def _is_external(url: str) -> bool:

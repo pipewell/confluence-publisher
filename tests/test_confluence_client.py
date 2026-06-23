@@ -118,7 +118,7 @@ def test_resolve_space_id_not_found():
 def test_upload_attachment_cloud():
     client = make_client("cloud")
 
-    with patch("confluence_publisher.confluence_client.requests.post") as mock_post:
+    with patch.object(client._session, "post") as mock_post:
         mock_post.return_value = mock_response(200, {})
         client.upload_attachment("123", "fig.png", b"\x89PNG", "image/png")
 
@@ -127,7 +127,8 @@ def test_upload_attachment_cloud():
     assert "/wiki/api/v2/pages/123/attachments" in url
     headers = mock_post.call_args[1]["headers"]
     assert "X-Atlassian-Token" in headers
-    assert "Content-Type" not in headers
+    # Content-Type set to None so requests strips the session default and auto-sets multipart
+    assert headers.get("Content-Type") is None
     files = mock_post.call_args[1]["files"]
     assert files["file"][0] == "fig.png"
     assert files["file"][1] == b"\x89PNG"
@@ -136,7 +137,7 @@ def test_upload_attachment_cloud():
 def test_upload_attachment_dc():
     client = make_client("dc")
 
-    with patch("confluence_publisher.confluence_client.requests.post") as mock_post:
+    with patch.object(client._session, "post") as mock_post:
         mock_post.return_value = mock_response(200, {})
         client.upload_attachment("123", "fig.png", b"data", "image/png")
 
@@ -144,10 +145,22 @@ def test_upload_attachment_dc():
     assert "/rest/api/content/123/child/attachment" in url
 
 
+def test_upload_attachment_uses_session_not_bare_requests():
+    """The session carries the configured cert (DC mTLS); bypassing it breaks cert auth."""
+    client = make_client("dc")
+
+    with patch.object(client._session, "post", return_value=mock_response(200, {})) as mock_sess:
+        with patch("confluence_publisher.confluence_client.requests.post") as mock_bare:
+            client.upload_attachment("123", "fig.png", b"data", "image/png")
+
+    mock_sess.assert_called_once()
+    mock_bare.assert_not_called()
+
+
 def test_upload_attachment_raises_on_error():
     client = make_client("cloud")
 
-    with patch("confluence_publisher.confluence_client.requests.post") as mock_post:
+    with patch.object(client._session, "post") as mock_post:
         bad = mock_response(400, {})
         mock_post.return_value = bad
         with pytest.raises(requests.HTTPError):

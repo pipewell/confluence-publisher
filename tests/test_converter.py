@@ -6,6 +6,8 @@ from confluence_publisher.converter import (
     build_banner,
     content_hash,
     convert,
+    _escape_attr,
+    _escape_cdata,
     _resolve_path,
 )
 import mistletoe
@@ -260,6 +262,49 @@ def test_resolve_path_root_file():
 
 def test_resolve_path_nested():
     assert _resolve_path("docs", "images/fig.png") == "docs/images/fig.png"
+
+
+# --- _escape_attr ---
+
+def test_escape_attr_escapes_ampersand():
+    assert _escape_attr("a&b") == "a&amp;b"
+
+def test_escape_attr_escapes_quotes():
+    assert _escape_attr('a"b') == "a&quot;b"
+
+def test_escape_attr_escapes_angle_brackets():
+    assert _escape_attr("a<b>c") == "a&lt;b&gt;c"
+
+def test_escape_attr_escapes_all():
+    assert _escape_attr('&<>"') == "&amp;&lt;&gt;&quot;"
+
+def test_url_with_angle_brackets_escaped_in_attribute():
+    body = render("![img](https://example.com/<bad>?q=1)", source="test.md")
+    assert "<bad>" not in body
+    assert "&lt;bad&gt;" in body
+
+def test_link_angle_brackets_in_href():
+    body = render("[x](https://example.com/a<b>c)")
+    assert "<b>" not in body
+    assert "&lt;b&gt;" in body
+
+
+# --- _escape_cdata ---
+
+def test_escape_cdata_passthrough():
+    assert _escape_cdata("hello world") == "hello world"
+
+def test_escape_cdata_splits_closing_sequence():
+    assert _escape_cdata("]]>") == "]]]]><![CDATA[>"
+
+def test_cdata_closing_sequence_in_code_block():
+    body = render("```\nsome]]>code\n```")
+    # The ]]> in the code content must be split so it cannot close the CDATA early
+    assert "]]]]><![CDATA[>" in body
+    assert "<![CDATA[some" in body
+
+def test_escape_cdata_multiple_occurrences():
+    assert _escape_cdata("a]]>b]]>c") == "a]]]]><![CDATA[>b]]]]><![CDATA[>c"
 
 
 # --- content_hash ---

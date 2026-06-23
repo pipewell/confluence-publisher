@@ -63,7 +63,15 @@ def main():
     help="Specific files to publish (relative paths). Publishes all manifest entries if omitted.",
 )
 @click.option("--dry-run", is_flag=True, help="Convert and log without calling the Confluence API.")
-@click.option("--strict-conflicts", is_flag=True, help="Treat edit conflicts as errors (exit non-zero).")
+@click.option(
+    "--strict-conflicts",
+    is_flag=True,
+    help=(
+        "Exit non-zero when a Confluence page has been manually edited since last publish. "
+        "The page is still overwritten with GitHub content (GitHub is always source of truth), "
+        "but the build fails so the team is notified of the overwrite."
+    ),
+)
 @click.option("--repo-root", default=".", show_default=True, help="Repository root directory.")
 def sync(changed_files: tuple[str, ...], dry_run: bool, strict_conflicts: bool, repo_root: str):
     """Publish changed Markdown files to Confluence."""

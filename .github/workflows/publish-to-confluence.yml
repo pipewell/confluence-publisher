@@ -78,10 +78,16 @@ jobs:
           CONFLUENCE_EMAIL: ${{ vars.CONFLUENCE_EMAIL }}
           MMDC_PUPPETEER_CFG: /tmp/puppeteer-config.json
         run: |
-          if [ -z "${{ steps.changed.outputs.files }}" ]; then
+          FILES="${{ steps.changed.outputs.files }}"
+          if [ -z "$FILES" ]; then
             confluence-publisher sync
           else
-            confluence-publisher sync ${{ steps.changed.outputs.files }}
+            read -ra FILE_ARRAY <<< "$FILES"
+            ARGS=()
+            for f in "${FILE_ARRAY[@]}"; do
+              ARGS+=(--changed-files "$f")
+            done
+            confluence-publisher sync "${ARGS[@]}"
           fi
 
       - name: Commit manifest state

@@ -78,11 +78,13 @@ def _upload_images(
     page_id: str,
     images: list[str],
     repo_root: Path,
-) -> None:
+) -> list[str]:
+    """Upload local images as page attachments. Returns a list of error messages."""
+    errors: list[str] = []
     for rel_path in images:
         abs_path = repo_root / rel_path
         if not abs_path.exists():
-            logger.warning("Image not found on disk, skipping upload: %s", abs_path)
+            errors.append(f"Local image not found after pre-flight check: {rel_path}")
             continue
         mime, _ = mimetypes.guess_type(str(abs_path))
         try:
@@ -94,29 +96,40 @@ def _upload_images(
             )
             logger.info("Uploaded attachment '%s' to page %s", abs_path.name, page_id)
         except Exception as exc:
-            logger.warning("Failed to upload image '%s': %s", rel_path, exc)
+            errors.append(f"Failed to upload image '{rel_path}': {exc}")
+    return errors
 
 
 def _upload_mermaid(
     client: ConfluenceClient,
     page_id: str,
     mermaid_blocks: list[str],
-) -> None:
+) -> list[str]:
+    """Render Mermaid diagrams to PNG and upload as page attachments. Returns error messages."""
+    if not mermaid_blocks:
+        return []
+    errors: list[str] = []
+    if not shutil.which("mmdc"):
+        return [
+            f"mermaid-{idx}.png: mmdc not found — install @mermaid-js/mermaid-cli to render diagrams"
+            for idx in range(len(mermaid_blocks))
+        ]
     for idx, source in enumerate(mermaid_blocks):
         png = _render_mermaid(source, idx)
         if png is None:
+            errors.append(f"mermaid-{idx}.png: mmdc failed to render — check diagram syntax")
             continue
-        filename = f"mermaid-{idx}.png"
         try:
             client.upload_attachment(
                 page_id=page_id,
-                filename=filename,
+                filename=f"mermaid-{idx}.png",
                 data=png,
                 mime_type="image/png",
             )
             logger.info("Uploaded mermaid diagram %d to page %s", idx, page_id)
         except Exception as exc:
-            logger.warning("Failed to upload mermaid diagram %d: %s", idx, exc)
+            errors.append(f"mermaid-{idx}.png: upload failed: {exc}")
+    return errors
 
 
 def publish_pages(
@@ -163,6 +176,19 @@ def publish_pages(
             ))
             continue
 
+        # Pre-flight: verify all local images exist before making any API call.
+        # Failing here prevents publishing a page body with broken image references.
+        if not dry_run:
+            missing_images = [p for p in result.images if not (repo_root / p).exists()]
+            if missing_images:
+                for p in missing_images:
+                    summary.results.append(PageResult(
+                        file_path=file_path,
+                        status="error",
+                        message=f"Local image not found on disk: {p}",
+                    ))
+                continue
+
         # --- Auto-create new pages ---
         if not entry.page_id:
             if dry_run:
@@ -191,9 +217,24 @@ def publish_pages(
                 ))
                 continue
 
+            # page_id must be saved immediately so the manifest records it
+            # even if attachment upload fails (avoids re-creating the page on next run)
             entry.page_id = page_id
-            _upload_images(client, page_id, result.images, repo_root)
-            _upload_mermaid(client, page_id, result.mermaid_blocks)
+
+            upload_errors = (
+                _upload_images(client, page_id, result.images, repo_root)
+                + _upload_mermaid(client, page_id, result.mermaid_blocks)
+            )
+            if upload_errors:
+                for msg in upload_errors:
+                    logger.error("Attachment error on '%s': %s", file_path, msg)
+                    summary.results.append(PageResult(
+                        file_path=file_path,
+                        status="error",
+                        message=msg,
+                    ))
+                # Don't record a published hash — next run will retry attachments
+                continue
 
             entry.last_published_hash = content_hash(result.body)
             entry.last_published_version = 1
@@ -264,8 +305,21 @@ def publish_pages(
                     message=conflict_msg,
                 ))
 
-        _upload_images(client, entry.page_id, result.images, repo_root)
-        _upload_mermaid(client, entry.page_id, result.mermaid_blocks)
+        # Upload attachments before updating the page body so references resolve immediately
+        upload_errors = (
+            _upload_images(client, entry.page_id, result.images, repo_root)
+            + _upload_mermaid(client, entry.page_id, result.mermaid_blocks)
+        )
+        if upload_errors:
+            for msg in upload_errors:
+                logger.error("Attachment error on '%s': %s", file_path, msg)
+                summary.results.append(PageResult(
+                    file_path=file_path,
+                    status="error",
+                    message=msg,
+                ))
+            # Don't update the page body with broken attachment references
+            continue
 
         new_version = current_version + 1
         try:
@@ -313,8 +367,13 @@ def check_pages(manifest: Manifest, repo_root: Path) -> list[str]:
             continue
         try:
             text = full_path.read_text(encoding="utf-8")
-            convert(text, file_path, commit_sha="<check>", page_id_map=page_id_map)
+            result = convert(text, file_path, commit_sha="<check>", page_id_map=page_id_map)
         except ConversionError as exc:
             errors.append(str(exc))
+            continue
+
+        for img_path in result.images:
+            if not (repo_root / img_path).exists():
+                errors.append(f"'{file_path}': local image not found on disk: {img_path}")
 
     return errors

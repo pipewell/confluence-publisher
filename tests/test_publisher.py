@@ -246,9 +246,11 @@ def test_mermaid_uploaded_on_publish(tmp_path):
     (tmp_path / "docs/arch.md").write_text("```mermaid\ngraph TD\n  A --> B\n```\n")
     client = make_client()
 
-    with patch("confluence_publisher.publisher._render_mermaid", return_value=b"\x89PNG") as mock_render:
-        publish_pages(manifest, ["docs/arch.md"], client, "sha", root)
+    with patch("confluence_publisher.publisher.shutil.which", return_value="/usr/bin/mmdc"):
+        with patch("confluence_publisher.publisher._render_mermaid", return_value=b"\x89PNG") as mock_render:
+            summary = publish_pages(manifest, ["docs/arch.md"], client, "sha", root)
 
+    assert summary.succeeded
     mock_render.assert_called_once_with("graph TD\n  A --> B\n", 0)
     client.upload_attachment.assert_called_once()
     _, kwargs = client.upload_attachment.call_args
@@ -256,27 +258,32 @@ def test_mermaid_uploaded_on_publish(tmp_path):
     assert kwargs["mime_type"] == "image/png"
 
 
-def test_mermaid_skipped_when_mmdc_missing(tmp_path):
+def test_mermaid_missing_mmdc_is_error(tmp_path):
     root, manifest = make_repo(tmp_path)
     (tmp_path / "docs/arch.md").write_text("```mermaid\ngraph TD\n```\n")
     client = make_client()
 
-    with patch("confluence_publisher.publisher._render_mermaid", return_value=None):
+    with patch("confluence_publisher.publisher.shutil.which", return_value=None):
         summary = publish_pages(manifest, ["docs/arch.md"], client, "sha", root)
 
-    assert summary.succeeded
+    assert not summary.succeeded
+    assert any("mmdc not found" in r.message for r in summary.errors)
     client.upload_attachment.assert_not_called()
+    # Page body must not be updated with a broken attachment reference
+    client.update_page.assert_not_called()
 
 
-def test_missing_image_does_not_fail_publish(tmp_path):
+def test_missing_image_fails_publish(tmp_path):
     root, manifest = make_repo(tmp_path)
     (tmp_path / "docs/arch.md").write_text("![missing](images/missing.png)\n")
     client = make_client()
 
     summary = publish_pages(manifest, ["docs/arch.md"], client, "sha", root)
 
-    assert summary.succeeded
-    client.upload_attachment.assert_not_called()
+    assert not summary.succeeded
+    assert any("not found" in r.message for r in summary.errors)
+    # Pre-flight check must prevent the page body from being published
+    client.update_page.assert_not_called()
 
 
 # --- Strict conflicts ---
@@ -405,6 +412,28 @@ def test_check_pages_unsupported_syntax(tmp_path):
     )
     errors = check_pages(manifest, root)
     assert any("Strikethrough" in e for e in errors)
+
+
+def test_check_pages_missing_image(tmp_path):
+    root, manifest = make_repo(
+        tmp_path,
+        files={"docs/arch.md": "![fig](images/fig.png)\n", "docs/runbook.md": "text"},
+    )
+    errors = check_pages(manifest, root)
+    assert any("image" in e.lower() for e in errors)
+    assert any("fig.png" in e for e in errors)
+
+
+def test_check_pages_present_image_is_ok(tmp_path):
+    root, manifest = make_repo(
+        tmp_path,
+        files={"docs/arch.md": "![fig](images/fig.png)\n", "docs/runbook.md": "text"},
+    )
+    img_dir = tmp_path / "docs" / "images"
+    img_dir.mkdir()
+    (img_dir / "fig.png").write_bytes(b"\x89PNG")
+    errors = check_pages(manifest, root)
+    assert errors == []
 
 
 def test_check_pages_no_page_id_is_ok(tmp_path):
