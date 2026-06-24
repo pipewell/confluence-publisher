@@ -18,15 +18,15 @@ pages:
   docs/ARCHITECTURE.md:
     page_id: '66085'
     title: Architecture
-    last_published_hash: 82ed3296ff320d104030b7642608b624ec1d65d374245b56b7b5d66d3eeaa3db
-    last_published_version: 4
-    last_published_commit: bd73b70
+    last_published_hash: 5da35c50de2fce040ac8a1745560154746049e680014b66b5da277fe21b0243a
+    last_published_version: 5
+    last_published_commit: 7d8769a
   docs/DELIVERY_PLAN.md:
     page_id: '66105'
     title: Delivery Plan
-    last_published_hash: 1b3095fa0b6e85834a23a7c5d1366a80b173062ebd6700ca0322a32991943357
-    last_published_version: 3
-    last_published_commit: bd73b70
+    last_published_hash: 718c247430a5608bca70deb98382a0301731c3000122a27ced4282aa0a93338a
+    last_published_version: 4
+    last_published_commit: 7d8769a
   docs/DECISIONS.md:
     page_id: '327702'
     title: Decisions & Open Questions
@@ -42,12 +42,12 @@ pages:
   docs/ONBOARDING.md:
     title: Onboarding Guide
     page_id: '327995'
-    last_published_hash: d8c8883355d974c78e61e24791273bb06267b5b873a34984c342cdae27065eef
-    last_published_version: 1
-    last_published_commit: 1d876bb
+    last_published_hash: b83e23dc20c265d8fe406decd87baca65495ddebbfa4ab9819f166b69a5a05be
+    last_published_version: 2
+    last_published_commit: 7d8769a
   test-docs/hello-world.md:
     page_id: '327687'
     title: Hello World (confluence-publisher test)
-    last_published_hash: ba545013380b00e681489de7fc0cced445afc273e9241656eedd1d3ff7cda288
-    last_published_version: 2
-    last_published_commit: bb91119
+    last_published_hash: 125318b9e547fdad9de305bb87a219a8b41faed953dce6ddfc035355fc9354bb
+    last_published_version: 4
+    last_published_commit: 7d8769a
