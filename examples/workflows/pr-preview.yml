@@ -31,7 +31,7 @@ jobs:
 
       - name: Dry-run conversion
         id: preview
-        uses: donolu/confluence-publisher@v1
+        uses: hollowpipe/confluence-publisher@v1
         with:
           operation: sync
           dry-run: 'true'

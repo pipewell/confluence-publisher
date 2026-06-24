@@ -1,6 +1,6 @@
 name: 'confluence-publisher'
 description: 'Publish Markdown documentation from GitHub to Confluence (one-way sync)'
-author: 'donolu'
+author: 'hollowpipe'
 
 inputs:
   operation:
@@ -82,7 +82,7 @@ runs:
         if [ -z "$REF" ]; then
           REF="${GITHUB_ACTION_REF:-main}"
         fi
-        pip install --quiet "git+https://github.com/donolu/confluence-publisher.git@${REF}"
+        pip install --quiet "git+https://github.com/hollowpipe/confluence-publisher.git@${REF}"
 
     - name: Install Mermaid CLI
       if: inputs.install-mermaid == 'true' && inputs.operation == 'sync'

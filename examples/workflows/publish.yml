@@ -39,7 +39,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - uses: donolu/confluence-publisher@v1
+      - uses: hollowpipe/confluence-publisher@v1
         with:
           operation: check
 
@@ -62,7 +62,7 @@ jobs:
             echo "files=$FILES" >> "$GITHUB_OUTPUT"
           fi
 
-      - uses: donolu/confluence-publisher@v1
+      - uses: hollowpipe/confluence-publisher@v1
         with:
           operation: sync
           confluence-base-url: ${{ vars.CONFLUENCE_BASE_URL }}
@@ -87,7 +87,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - uses: donolu/confluence-publisher@v1
+      - uses: hollowpipe/confluence-publisher@v1
         with:
           operation: validate-manifest
           confluence-base-url: ${{ vars.CONFLUENCE_BASE_URL }}

@@ -93,7 +93,7 @@ examples/workflows/publish.yml       ->  .github/workflows/publish-to-confluence
 examples/workflows/pr-preview.yml    ->  .github/workflows/confluence-pr-preview.yml
 ```
 
-Both files reference `donolu/confluence-publisher@v1`. No further code changes are needed
+Both files reference `hollowpipe/confluence-publisher@v1`. No further code changes are needed
 in your repository.
 
 ---
@@ -117,7 +117,7 @@ the existing pages.
 ```bash
 python -m venv venv
 source venv/bin/activate
-pip install git+https://github.com/donolu/confluence-publisher.git@v1
+pip install git+https://github.com/hollowpipe/confluence-publisher.git@v1
 ```
 
 Copy `.env.example` to `.env`, fill in your credentials, then:

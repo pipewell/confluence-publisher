@@ -26,4 +26,4 @@ def greet(name: str) -> str:
 
 > This page is safe to delete once the pipeline is verified.
 
-See the [confluence-publisher repo](https://github.com/donolu/confluence-publisher) for source.
+See the [confluence-publisher repo](https://github.com/hollowpipe/confluence-publisher) for source.

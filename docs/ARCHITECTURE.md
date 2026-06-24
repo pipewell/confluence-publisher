@@ -165,7 +165,7 @@ Two top-level functions:
 
 ### 6. GitHub Action (`action.yml`)
 
-Composite action at the repository root. Consumers use `uses: donolu/confluence-publisher@v1`.
+Composite action at the repository root. Consumers use `uses: hollowpipe/confluence-publisher@v1`.
 
 Inputs: `operation`, `confluence-base-url`, `confluence-mode`, `confluence-email`,
 `confluence-api-token`, `confluence-cert-pem`, `changed-files`, `dry-run`,

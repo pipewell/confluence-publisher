@@ -31,7 +31,7 @@ pages:
 
 ```yaml
 # .github/workflows/publish-to-confluence.yml (minimal)
-- uses: donolu/confluence-publisher@v1
+- uses: hollowpipe/confluence-publisher@v1
   with:
     confluence-base-url: ${{ vars.CONFLUENCE_BASE_URL }}
     confluence-api-token: ${{ secrets.CONFLUENCE_API_TOKEN }}

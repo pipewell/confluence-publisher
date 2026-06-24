@@ -65,7 +65,7 @@ docs and see them appear in Confluence within minutes.
 
 **Scope:**
 - Composite GitHub Action (`action.yml`) at the repository root
-- Consumers use `uses: donolu/confluence-publisher@v1`; no code changes needed to adopt
+- Consumers use `uses: hollowpipe/confluence-publisher@v1`; no code changes needed to adopt
 - Per-repo configuration via `confluence-manifest.yaml` only
 - Example workflows in `examples/workflows/`: full publish workflow and PR dry-run preview
 - `docs/ONBOARDING.md` covers prerequisites, manifest setup, secret configuration,
