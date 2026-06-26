@@ -230,6 +230,9 @@ def publish_pages(
 
             # Save page_id before touching attachments so reruns skip creation.
             entry.page_id = page_id
+            # Keep the in-memory map current so pages processed later in this
+            # same run can resolve links to this newly-created page.
+            page_id_map[file_path] = page_id
 
             if has_attachments:
                 upload_errors = (

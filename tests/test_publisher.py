@@ -261,6 +261,50 @@ def test_auto_create_no_attachments_single_step(tmp_path):
     assert "<h1>Arch</h1>" in create_kwargs["body"]
 
 
+def test_same_run_create_updates_page_id_map(tmp_path):
+    """A page created earlier in the same run must be resolvable as an ac:link by later pages.
+
+    page_id_map was built before the run started, so newly-created page IDs must be
+    added to the map as they are assigned -- otherwise the second page publishes a
+    plain Markdown href and the link stays broken until the next full sync.
+    """
+    data = {
+        "version": 1,
+        "defaults": {"space_id": "TEST"},
+        "pages": {
+            "docs/new-page.md": {"title": "New Page"},
+            "docs/linker.md": {"title": "Linker"},
+        },
+    }
+    (tmp_path / "confluence-manifest.yaml").write_text(yaml.dump(data))
+    docs = tmp_path / "docs"
+    docs.mkdir()
+    (docs / "new-page.md").write_text("# New Page\n")
+    # linker.md references new-page.md which has no page_id yet at the start of the run
+    (docs / "linker.md").write_text("[go to new](new-page.md)\n")
+    manifest = load_manifest(tmp_path)
+    client = make_client()
+    # create_page returns "888" for new-page, then "889" for linker (if it also needs creating)
+    client.create_page.side_effect = ["888", "889"]
+
+    # Process new-page first, then linker -- simulates the order in changed_files
+    summary = publish_pages(
+        manifest,
+        ["docs/new-page.md", "docs/linker.md"],
+        client,
+        "sha",
+        tmp_path,
+    )
+
+    assert summary.succeeded
+    # The linker page body must contain an ac:link pointing to the new page ID "888"
+    calls = client.create_page.call_args_list
+    linker_body = calls[1][1]["body"]
+    assert 'ri:content-id="888"' in linker_body, (
+        "Link to same-run created page was not rewritten -- page_id_map not updated after create"
+    )
+
+
 def test_auto_create_attachment_failure_leaves_placeholder(tmp_path):
     """Upload failure on new page: page_id saved, no hash written, update_page not called."""
     data = {

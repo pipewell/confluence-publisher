@@ -140,6 +140,26 @@ def test_internal_link_with_path_traversal():
     out = render("[arch](../docs/arch.md)", source="notes/index.md", page_id_map=pid_map)
     assert 'ri:content-id="99"' in out
 
+def test_internal_link_with_anchor_resolved():
+    """Links like other.md#section must resolve to ac:link, not a plain href."""
+    pid_map = {"docs/other.md": "42"}
+    out = render("[see section](other.md#section)", source="docs/index.md", page_id_map=pid_map)
+    assert 'ri:content-id="42"' in out
+    assert "<ac:link>" in out
+
+def test_internal_link_with_query_resolved():
+    """Links like other.md?foo=bar must resolve to ac:link."""
+    pid_map = {"docs/other.md": "42"}
+    out = render("[see page](other.md?foo=bar)", source="docs/index.md", page_id_map=pid_map)
+    assert 'ri:content-id="42"' in out
+    assert "<ac:link>" in out
+
+def test_internal_link_with_anchor_unknown_falls_back():
+    """If the target is not in the map, anchor links fall back to a plain href."""
+    out = render("[see section](other.md#section)", source="docs/index.md", page_id_map={})
+    assert '<a href="other.md#section">' in out
+    assert "<ac:link>" not in out
+
 
 # --- Images ---
 

@@ -136,13 +136,14 @@ class ConfluenceRenderer(BaseRenderer):
 
     def render_link(self, token):
         target = token.target
-        if (
-            not _is_external(target)
-            and not target.startswith("#")
-            and target.rstrip("?#").endswith(".md")
-        ):
-            # Strip any fragment/query from the path for lookup
+        if not _is_external(target) and not target.startswith("#"):
+            # Strip fragment and query before the .md check so that
+            # links like other.md#section and other.md?foo=bar are resolved
+            # correctly (rstrip("?#") only strips trailing delimiters, not
+            # the full fragment/query string).
             md_path = target.split("?")[0].split("#")[0]
+            if not md_path.endswith(".md"):
+                return f'<a href="{_escape_attr(target)}">{self.render_inner(token)}</a>'
             resolved = _resolve_path(self._source_dir, md_path)
             page_id = self._page_id_map.get(resolved)
             if page_id:

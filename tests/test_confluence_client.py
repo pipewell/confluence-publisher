@@ -124,7 +124,9 @@ def test_upload_attachment_cloud():
 
     mock_req.assert_called_once()
     url = mock_req.call_args[0][1]   # _request("POST", url, ...)
-    assert "/wiki/api/v2/pages/123/attachments" in url
+    # Cloud must use the v1 content endpoint; v2 /wiki/api/v2/pages/{id}/attachments is GET-only.
+    assert "/wiki/rest/api/content/123/child/attachment" in url
+    assert "/wiki/api/v2" not in url
     kwargs = mock_req.call_args[1]
     headers = kwargs["headers"]
     assert "X-Atlassian-Token" in headers

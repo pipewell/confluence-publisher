@@ -162,7 +162,7 @@ class ConfluenceClient:
         if self.mode == "dc":
             url = f"{self.base_url}/rest/api/content/{page_id}/child/attachment"
         else:
-            url = f"{self.base_url}/wiki/api/v2/pages/{page_id}/attachments"
+            url = f"{self.base_url}/wiki/rest/api/content/{page_id}/child/attachment"
         # Content-Type: None removes the session's application/json default so
         # requests can auto-set the correct multipart/form-data boundary.
         # Routing through _request gives 429/5xx retry coverage.
