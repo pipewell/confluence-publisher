@@ -93,8 +93,17 @@ examples/workflows/publish.yml       ->  .github/workflows/publish-to-confluence
 examples/workflows/pr-preview.yml    ->  .github/workflows/confluence-pr-preview.yml
 ```
 
-Both files reference `hollowpipe/confluence-publisher@v1`. No further code changes are needed
+Both files reference `pipewell/confluence-publisher@v1`. No further code changes are needed
 in your repository.
+
+The workflow needs the following permissions so the action can write the manifest back after
+creating new pages:
+
+```yaml
+permissions:
+  contents: write
+  pull-requests: write
+```
 
 ---
 
@@ -106,9 +115,27 @@ Either push a change to any file listed in the manifest, or trigger the workflow
 2. Select **Publish docs to Confluence**
 3. Click **Run workflow** and tick **Sync all manifest entries**
 
-The first run will create any pages where `page_id` is absent, then write those IDs back to
-`confluence-manifest.yaml` via a `[skip ci]` commit. Subsequent runs use those IDs to update
-the existing pages.
+The first run will create any pages where `page_id` is absent. The action then writes those
+IDs back to `confluence-manifest.yaml` automatically. Subsequent runs use those IDs to update
+the existing pages rather than creating new ones.
+
+### How manifest write-back works
+
+After publishing, the action commits the updated manifest directly to the branch using the
+GitHub Contents API. This requires no extra configuration in most repositories.
+
+If your repository has branch protection on `main` that requires pull requests, the direct
+commit will be blocked. The action will then open a PR automatically. **Merge that PR
+promptly** -- until it is merged, the next publish run will not have the new page IDs and
+may attempt to re-create pages that already exist.
+
+To avoid the PR fallback entirely, grant `github-actions[bot]` bypass permission on the
+branch protection rule:
+
+1. Go to **Settings > Branches** in your repository
+2. Edit the protection rule for `main`
+3. Under **Allow specified actors to bypass required pull requests**, add `github-actions[bot]`
+4. Save
 
 ---
 
@@ -117,7 +144,7 @@ the existing pages.
 ```bash
 python -m venv venv
 source venv/bin/activate
-pip install git+https://github.com/hollowpipe/confluence-publisher.git@v1
+pip install pipewell-confluence-publisher
 ```
 
 Copy `.env.example` to `.env`, fill in your credentials, then:
@@ -178,6 +205,13 @@ the upload and body update without creating a duplicate page.
 ---
 
 ## Troubleshooting
+
+**A pull request was opened for manifest write-back but the next publish failed**
+
+The manifest PR has not been merged yet. The page IDs are not on `main`, so the action tried
+to re-create pages that already exist in Confluence. Merge the manifest PR first, then re-run
+the publish workflow. To prevent this in future, grant `github-actions[bot]` bypass permission
+on the branch protection rule as described in Step 5.
 
 **`page_id not found` on validate-manifest**
 

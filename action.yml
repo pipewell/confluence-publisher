@@ -65,6 +65,13 @@ inputs:
     description: 'Git ref or branch to install (defaults to the same ref the action was called from)'
     required: false
     default: ''
+  github-token:
+    description: >
+      GitHub token used to write the manifest back after creating new pages.
+      Requires contents: write and pull-requests: write permissions.
+      Defaults to the built-in GITHUB_TOKEN.
+    required: false
+    default: ''
 
 outputs:
   result:
@@ -133,3 +140,65 @@ runs:
         } >> "$GITHUB_OUTPUT"
 
         exit $EXIT_CODE
+
+    - name: Write back manifest
+      if: inputs.operation == 'sync' && inputs.dry-run != 'true'
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.github-token != '' && inputs.github-token || github.token }}
+      run: |
+        # Path to manifest relative to the repo root (strip leading ./)
+        MANIFEST_REL="${{ inputs.repo-root }}/confluence-manifest.yaml"
+        MANIFEST_REL="${MANIFEST_REL#./}"
+
+        # Nothing to do if the manifest was not changed by the publish run
+        if git -C "$GITHUB_WORKSPACE" diff --quiet -- "$MANIFEST_REL" 2>/dev/null; then
+          echo "No new page IDs to write back."
+          exit 0
+        fi
+
+        echo "New page IDs assigned — writing manifest back to $GITHUB_REF_NAME..."
+
+        # Contents API requires the current blob SHA to update an existing file
+        FILE_SHA=$(gh api "/repos/$GITHUB_REPOSITORY/contents/$MANIFEST_REL" \
+          --jq '.sha' 2>/dev/null || echo "")
+        CONTENT=$(base64 < "$GITHUB_WORKSPACE/$MANIFEST_REL" | tr -d '\n')
+
+        # Attempt a direct commit via the Contents API.
+        # This succeeds when branch protection grants github-actions[bot] bypass.
+        if gh api \
+            --method PUT \
+            "/repos/$GITHUB_REPOSITORY/contents/$MANIFEST_REL" \
+            -f "message=chore: update manifest with new page IDs [skip ci]" \
+            -f "content=$CONTENT" \
+            -f "sha=$FILE_SHA" \
+            -f "branch=$GITHUB_REF_NAME" \
+            --silent 2>/dev/null; then
+          echo "Manifest committed directly."
+          exit 0
+        fi
+
+        # Fall back: open a PR so the manifest update goes through the normal review path.
+        # IMPORTANT: until this PR is merged, the next publish run will attempt to
+        # re-create the same pages. Merge it promptly to avoid duplicates.
+        echo "Direct commit blocked by branch protection — opening a PR instead."
+        BRANCH="manifest-writeback-$(date +%s)"
+        git -C "$GITHUB_WORKSPACE" config user.name "github-actions[bot]"
+        git -C "$GITHUB_WORKSPACE" config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+        git -C "$GITHUB_WORKSPACE" checkout -b "$BRANCH"
+        git -C "$GITHUB_WORKSPACE" add "$MANIFEST_REL"
+        git -C "$GITHUB_WORKSPACE" commit -m "chore: update manifest with new page IDs [skip ci]"
+        git -C "$GITHUB_WORKSPACE" push origin "$BRANCH"
+        gh pr create \
+          --repo "$GITHUB_REPOSITORY" \
+          --title "chore: update confluence manifest with new page IDs" \
+          --body "$(cat <<'PRBODY'
+New Confluence pages were created in the last publish run. This PR records their page IDs in the manifest.
+
+**Merge this promptly.** Until it is merged, the next publish run will attempt to re-create these pages and may fail or create duplicates.
+
+To avoid this PR in future, grant \`github-actions[bot]\` bypass permission on the branch protection rule for \`main\` in your repository settings.
+PRBODY
+          )" \
+          --base "$GITHUB_REF_NAME" \
+          --head "$BRANCH" || true
