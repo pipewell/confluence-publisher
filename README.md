@@ -109,6 +109,12 @@ This tool is intentionally narrow:
 
 ---
 
+## Known limitations
+
+- **Inline comments lose their anchor on republish.** Confluence anchors an inline comment by embedding markup directly in the page body around the highlighted text. Every publish replaces the full page body with freshly-converted Markdown, so that anchor markup doesn't survive -- the comment thread is typically detached rather than deleted, but it no longer points at any specific text. Footer/page-level comments are unaffected, since they're stored separately from the body and never touched by this tool. Tracked in [#11](https://github.com/pipewell/confluence-publisher/issues/11).
+
+---
+
 ## Documents
 
 | Document | Purpose |
