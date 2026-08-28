@@ -131,6 +131,28 @@ def test_conversion_error_is_error(tmp_path):
     client.update_page.assert_not_called()
 
 
+def test_unhandled_exception_on_one_file_does_not_abort_batch_or_lose_earlier_state(tmp_path):
+    root, manifest = make_repo(tmp_path)
+    client = make_client()
+    # docs/runbook.md is not valid UTF-8, so read_text() raises UnicodeDecodeError --
+    # an unexpected error that isn't a ConversionError.
+    (root / "docs/runbook.md").write_bytes(b"\xff\xfe not valid utf-8")
+
+    summary = publish_pages(manifest, ["docs/arch.md", "docs/runbook.md"], client, "sha", root)
+
+    arch_result = next(r for r in summary.results if r.file_path == "docs/arch.md")
+    runbook_result = next(r for r in summary.results if r.file_path == "docs/runbook.md")
+    assert arch_result.status == "published"
+    assert runbook_result.status == "error"
+    assert "Unexpected error" in runbook_result.message
+
+    # The crash on runbook.md must not prevent arch.md's already-published state
+    # from being persisted to the manifest on disk.
+    reloaded = load_manifest(root)
+    assert reloaded.pages["docs/arch.md"].last_published_hash is not None
+    assert reloaded.pages["docs/arch.md"].last_published_version == 6
+
+
 def test_api_error_is_error(tmp_path):
     root, manifest = make_repo(tmp_path)
     client = make_client()

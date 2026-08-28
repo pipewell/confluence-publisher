@@ -11,7 +11,7 @@ from pathlib import Path
 
 from .confluence_client import ConfluenceClient
 from .converter import ConversionError, content_hash, convert
-from .manifest import Manifest, save_manifest
+from .manifest import Manifest, PageEntry, save_manifest
 
 logger = logging.getLogger(__name__)
 
@@ -145,12 +145,7 @@ def publish_pages(
     # Build lookup map for internal link rewriting
     page_id_map = {fp: entry.page_id for fp, entry in manifest.pages.items() if entry.page_id}
 
-    for file_path in changed_files:
-        entry = manifest.pages.get(file_path)
-        if entry is None:
-            logger.debug("'%s' not in manifest, skipping", file_path)
-            continue
-
+    def _process_file(file_path: str, entry: PageEntry) -> None:
         full_path = repo_root / file_path
         if not full_path.exists():
             summary.results.append(
@@ -160,7 +155,7 @@ def publish_pages(
                     message=f"File does not exist on disk: {full_path}",
                 )
             )
-            continue
+            return
 
         try:
             text = full_path.read_text(encoding="utf-8")
@@ -173,7 +168,7 @@ def publish_pages(
                     message=str(exc),
                 )
             )
-            continue
+            return
 
         # Pre-flight: verify all local images exist before making any API call.
         # Failing here prevents publishing a page body with broken image references.
@@ -188,7 +183,7 @@ def publish_pages(
                             message=f"Local image not found on disk: {p}",
                         )
                     )
-                continue
+                return
 
         # --- Auto-create new pages ---
         if not entry.page_id:
@@ -201,7 +196,7 @@ def publish_pages(
                         message="dry-run (would create)",
                     )
                 )
-                continue
+                return
 
             has_attachments = bool(result.images or result.mermaid_blocks)
             space_key = entry.space_id or manifest.defaults.get("space_id", "")
@@ -231,7 +226,7 @@ def publish_pages(
                         message=f"Failed to create page: {exc}",
                     )
                 )
-                continue
+                return
 
             # Save page_id before touching attachments so reruns skip creation.
             entry.page_id = page_id
@@ -254,7 +249,7 @@ def publish_pages(
                             )
                         )
                     # Page exists with safe placeholder; next run retries via update path.
-                    continue
+                    return
 
                 try:
                     client.update_page(
@@ -272,7 +267,7 @@ def publish_pages(
                             message=f"Failed to update new page body after attachment upload: {exc}",
                         )
                     )
-                    continue
+                    return
 
                 entry.last_published_version = 2
             else:
@@ -289,14 +284,14 @@ def publish_pages(
                     message="created",
                 )
             )
-            continue
+            return
 
         # --- Update existing page ---
         new_hash = content_hash(result.body)
         if entry.last_published_hash == new_hash:
             logger.info("'%s' unchanged, skipping", file_path)
             summary.results.append(PageResult(file_path=file_path, status="skipped"))
-            continue
+            return
 
         if dry_run:
             logger.info("[dry-run] Would publish '%s'", file_path)
@@ -307,7 +302,7 @@ def publish_pages(
                     message="dry-run",
                 )
             )
-            continue
+            return
 
         try:
             current = client.get_page(entry.page_id)
@@ -319,7 +314,7 @@ def publish_pages(
                     message=f"Failed to fetch page {entry.page_id}: {exc}",
                 )
             )
-            continue
+            return
 
         current_version = current["version"]
 
@@ -373,7 +368,7 @@ def publish_pages(
                     )
                 )
             # Don't update the page body with broken attachment references
-            continue
+            return
 
         new_version = current_version + 1
         try:
@@ -392,7 +387,7 @@ def publish_pages(
                     message=f"Failed to update page {entry.page_id}: {exc}",
                 )
             )
-            continue
+            return
 
         entry.last_published_hash = new_hash
         entry.last_published_version = new_version
@@ -403,8 +398,30 @@ def publish_pages(
 
         logger.info("Published '%s' -> page %s (v%d)", file_path, entry.page_id, new_version)
 
-    if not dry_run:
-        save_manifest(manifest)
+    # Each file is processed and its manifest state persisted immediately, so a
+    # crash or interruption on a later file can never lose an earlier file's
+    # already-published page_id/hash — the batch write-back at the end alone
+    # was not enough to guarantee that.
+    for file_path in changed_files:
+        entry = manifest.pages.get(file_path)
+        if entry is None:
+            logger.debug("'%s' not in manifest, skipping", file_path)
+            continue
+
+        try:
+            _process_file(file_path, entry)
+        except Exception as exc:
+            logger.exception("Unexpected error publishing '%s'", file_path)
+            summary.results.append(
+                PageResult(
+                    file_path=file_path,
+                    status="error",
+                    message=f"Unexpected error: {exc}",
+                )
+            )
+        finally:
+            if not dry_run:
+                save_manifest(manifest)
 
     return summary
 
