@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 def _build_client() -> ConfluenceClient:
     base_url = os.environ.get("CONFLUENCE_BASE_URL", "").rstrip("/")
     token = os.environ.get("CONFLUENCE_API_TOKEN", "")
-    mode = os.environ.get("CONFLUENCE_MODE", "dc").lower()
+    mode = os.environ.get("CONFLUENCE_MODE", "").lower()
     email = os.environ.get("CONFLUENCE_EMAIL")
     cert_pem_b64 = os.environ.get("CONFLUENCE_CERT_PEM")
 
@@ -31,6 +31,7 @@ def _build_client() -> ConfluenceClient:
         for k, v in [
             ("CONFLUENCE_BASE_URL", base_url),
             ("CONFLUENCE_API_TOKEN", token),
+            ("CONFLUENCE_MODE", mode),
         ]
         if not v
     ]
