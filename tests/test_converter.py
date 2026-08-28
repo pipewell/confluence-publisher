@@ -269,6 +269,16 @@ def test_strikethrough_raises():
         render("~~deleted~~")
 
 
+def test_inline_html_raises():
+    with pytest.raises(ConversionError, match="Inline HTML"):
+        render("Some <b>bold</b> text.")
+
+
+def test_block_html_raises():
+    with pytest.raises(ConversionError, match="Raw HTML"):
+        render("<div>\nblock html\n</div>\n")
+
+
 # --- Banner ---
 
 

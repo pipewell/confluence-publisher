@@ -7,6 +7,8 @@ from pathlib import PurePosixPath
 
 from mistletoe import Document
 from mistletoe.base_renderer import BaseRenderer
+from mistletoe.block_token import HtmlBlock
+from mistletoe.span_token import HtmlSpan
 
 logger = logging.getLogger(__name__)
 
@@ -32,7 +34,11 @@ class ConfluenceRenderer(BaseRenderer):
         page_id_map: dict[str, str] | None = None,
         **kwargs,
     ):
-        super().__init__(**kwargs)
+        # HtmlSpan/HtmlBlock aren't registered by mistletoe by default, which
+        # means raw HTML would otherwise fall through to RawText and render as
+        # harmless (but silently wrong) escaped literal text instead of the
+        # documented "raises a conversion error" behaviour.
+        super().__init__(HtmlSpan, HtmlBlock, **kwargs)
         self.source_path = source_path
         self._page_id_map = page_id_map or {}
         self._source_dir = str(PurePosixPath(source_path).parent)
@@ -189,6 +195,11 @@ class ConfluenceRenderer(BaseRenderer):
     def render_html_span(self, token):
         raise ConversionError(
             f"Inline HTML is not supported ('{self.source_path}'). Remove or convert to Markdown."
+        )
+
+    def render_html_block(self, token):
+        raise ConversionError(
+            f"Raw HTML is not supported ('{self.source_path}'). Remove or convert to Markdown."
         )
 
 
