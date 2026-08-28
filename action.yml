@@ -192,13 +192,6 @@ runs:
         gh pr create \
           --repo "$GITHUB_REPOSITORY" \
           --title "chore: update confluence manifest with new page IDs" \
-          --body "$(cat <<'PRBODY'
-New Confluence pages were created in the last publish run. This PR records their page IDs in the manifest.
-
-**Merge this promptly.** Until it is merged, the next publish run will attempt to re-create these pages and may fail or create duplicates.
-
-To avoid this PR in future, grant \`github-actions[bot]\` bypass permission on the branch protection rule for \`main\` in your repository settings.
-PRBODY
-          )" \
+          --body $'New Confluence pages were created in the last publish run. This PR records their page IDs in the manifest.\n\n**Merge this promptly.** Until it is merged, the next publish run will attempt to re-create these pages and may fail or create duplicates.\n\nTo avoid this PR in future, grant `github-actions[bot]` bypass permission on the branch protection rule for `main` in your repository settings.' \
           --base "$GITHUB_REF_NAME" \
           --head "$BRANCH" || true
