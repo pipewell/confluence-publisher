@@ -400,7 +400,7 @@ def publish_pages(
 
     # Each file is processed and its manifest state persisted immediately, so a
     # crash or interruption on a later file can never lose an earlier file's
-    # already-published page_id/hash — the batch write-back at the end alone
+    # already-published page_id/hash: the batch write-back at the end alone
     # was not enough to guarantee that.
     for file_path in changed_files:
         entry = manifest.pages.get(file_path)
