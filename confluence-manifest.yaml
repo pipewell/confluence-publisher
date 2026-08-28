@@ -36,9 +36,9 @@ pages:
   docs/MANIFEST_SPEC.md:
     page_id: '327722'
     title: Manifest Specification
-    last_published_hash: 79fd807c70042375fb18e952b0749844d4f07fd3826bb208277ae7ccce8542ea
-    last_published_version: 3
-    last_published_commit: bd73b70
+    last_published_hash: 1e5ff5bb5e1b13529cbe125b9692f64b5929cfc40327e1a348aa9e6587d384b6
+    last_published_version: 4
+    last_published_commit: '1938101'
   docs/ONBOARDING.md:
     title: Onboarding Guide
     page_id: '327995'
