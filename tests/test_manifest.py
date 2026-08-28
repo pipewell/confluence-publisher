@@ -54,7 +54,7 @@ def test_missing_title_raises(tmp_path):
 def test_duplicate_page_id_raises(tmp_path):
     data = {
         "version": 1,
-        "defaults": {},
+        "defaults": {"space_id": "S"},
         "pages": {
             "docs/a.md": {"page_id": "999", "title": "A"},
             "docs/b.md": {"page_id": "999", "title": "B"},
@@ -114,3 +114,25 @@ def test_entry_without_page_id_is_allowed(tmp_path):
     write_manifest(tmp_path, data)
     m = load_manifest(tmp_path)
     assert m.pages["docs/new.md"].page_id is None
+
+
+def test_missing_space_id_raises(tmp_path):
+    data = {
+        "version": 1,
+        "defaults": {},
+        "pages": {"docs/new.md": {"title": "New Page"}},
+    }
+    write_manifest(tmp_path, data)
+    with pytest.raises(ValueError, match="Missing 'space_id'"):
+        load_manifest(tmp_path)
+
+
+def test_per_page_space_id_satisfies_missing_default(tmp_path):
+    data = {
+        "version": 1,
+        "defaults": {},
+        "pages": {"docs/new.md": {"title": "New Page", "space_id": "OVERRIDE"}},
+    }
+    write_manifest(tmp_path, data)
+    m = load_manifest(tmp_path)
+    assert m.pages["docs/new.md"].space_id == "OVERRIDE"

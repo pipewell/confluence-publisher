@@ -53,10 +53,17 @@ def load_manifest(repo_root: Path) -> Manifest:
                 )
             seen_ids[page_id] = file_path
 
+        space_id = entry_data.get("space_id", defaults.get("space_id"))
+        if not space_id:
+            raise ValueError(
+                f"Missing 'space_id' for '{file_path}': set defaults.space_id "
+                "or a per-page space_id override"
+            )
+
         pages[file_path] = PageEntry(
             file_path=file_path,
             page_id=page_id,
-            space_id=entry_data.get("space_id", defaults.get("space_id")),
+            space_id=space_id,
             title=title,
             parent_id=entry_data.get("parent_id", defaults.get("parent_id")),
             last_published_hash=entry_data.get("last_published_hash"),
