@@ -116,6 +116,12 @@ def test_ordered_list():
     assert "first" in out
 
 
+def test_ordered_list_non_default_start():
+    out = render("3. third\n4. fourth\n")
+    assert out.startswith('<ol start="3">')
+    assert "third" in out
+
+
 def test_nested_list():
     out = render("- parent\n  - child\n")
     assert out.count("<ul>") == 2
@@ -243,6 +249,17 @@ def test_soft_line_break_is_space():
 def test_table_renders():
     body = render("| a | b |\n|---|---|\n| 1 | 2 |\n")
     assert "<table>" in body
+    assert "<th>" in body
+    assert "<td>" in body
+
+
+def test_table_column_alignment_preserved():
+    body = render("| left | center | right |\n|:---|:---:|---:|\n| 1 | 2 | 3 |\n")
+    assert '<th style="text-align: center;">' in body
+    assert '<th style="text-align: right;">' in body
+    assert '<td style="text-align: center;">' in body
+    assert '<td style="text-align: right;">' in body
+    # left-aligned (the default) gets no style attribute
     assert "<th>" in body
     assert "<td>" in body
 

@@ -87,8 +87,10 @@ class ConfluenceRenderer(BaseRenderer):
         )
 
     def render_list(self, token):
-        tag = "ol" if token.start is not None else "ul"
-        return f"<{tag}>{self.render_inner(token)}</{tag}>"
+        if token.start is None:
+            return f"<ul>{self.render_inner(token)}</ul>"
+        start_attr = f' start="{token.start}"' if token.start != 1 else ""
+        return f"<ol{start_attr}>{self.render_inner(token)}</ol>"
 
     def render_list_item(self, token):
         return f"<li>{self.render_inner(token)}</li>"
@@ -102,7 +104,10 @@ class ConfluenceRenderer(BaseRenderer):
 
     def _render_row(self, row, header: bool) -> str:
         tag = "th" if header else "td"
-        return "".join(f"<{tag}><p>{self.render_inner(cell)}</p></{tag}>" for cell in row.children)
+        return "".join(
+            f"<{tag}{_align_attr(cell.align)}><p>{self.render_inner(cell)}</p></{tag}>"
+            for cell in row.children
+        )
 
     def render_table_row(self, token):
         return ""
@@ -200,6 +205,15 @@ def _escape_attr(text: str) -> str:
 def _escape_cdata(text: str) -> str:
     """Split ]]> so it cannot prematurely close a CDATA section."""
     return text.replace("]]>", "]]]]><![CDATA[>")
+
+
+def _align_attr(align: int | None) -> str:
+    """mistletoe cell alignment: None = left (default), 0 = center, 1 = right."""
+    if align == 0:
+        return ' style="text-align: center;"'
+    if align == 1:
+        return ' style="text-align: right;"'
+    return ""
 
 
 def _is_external(url: str) -> bool:
