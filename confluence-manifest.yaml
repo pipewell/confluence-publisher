@@ -3,6 +3,9 @@ defaults:
   space_id: Bazzoniare
   parent_id: '131322'
 pages:
+  docs/INDEX.md:
+    page_id: '131322'
+    title: confluence-publisher
   docs/BRD.md:
     page_id: '98529'
     title: Business Requirements
