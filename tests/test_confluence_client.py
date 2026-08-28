@@ -33,7 +33,7 @@ def test_create_page_cloud_calls_v2(tmp_path):
     client._space_id_cache["MYSPACE"] = "123"
 
     with patch.object(
-        client, "_request", return_value=mock_response(200, {"id": "456"})
+        client, "_request_no_retry", return_value=mock_response(200, {"id": "456"})
     ) as mock_req:
         page_id = client.create_page("My Page", "MYSPACE", "100", "<p>body</p>")
 
@@ -52,7 +52,7 @@ def test_create_page_cloud_no_parent(tmp_path):
     client._space_id_cache["MYSPACE"] = "123"
 
     with patch.object(
-        client, "_request", return_value=mock_response(200, {"id": "456"})
+        client, "_request_no_retry", return_value=mock_response(200, {"id": "456"})
     ) as mock_req:
         client.create_page("My Page", "MYSPACE", "", "<p>body</p>")
 
@@ -64,7 +64,7 @@ def test_create_page_dc_calls_v1():
     client = make_client("dc")
 
     with patch.object(
-        client, "_request", return_value=mock_response(200, {"id": "789"})
+        client, "_request_no_retry", return_value=mock_response(200, {"id": "789"})
     ) as mock_req:
         page_id = client.create_page("DC Page", "DCSPACE", "50", "<p>body</p>")
 
@@ -80,12 +80,28 @@ def test_create_page_dc_no_parent():
     client = make_client("dc")
 
     with patch.object(
-        client, "_request", return_value=mock_response(200, {"id": "789"})
+        client, "_request_no_retry", return_value=mock_response(200, {"id": "789"})
     ) as mock_req:
         client.create_page("DC Page", "DCSPACE", "", "<p>body</p>")
 
     payload = mock_req.call_args[1]["json"]
     assert "ancestors" not in payload
+
+
+def test_create_page_does_not_retry_on_5xx():
+    """A lost 503 response after the page was actually created server-side must
+    not be retried -- retrying a create POST risks a duplicate page."""
+    client = make_client("cloud")
+    client._space_id_cache["MYSPACE"] = "123"
+
+    session_mock = MagicMock()
+    session_mock.request.return_value = mock_response(503)
+    client._session = session_mock
+
+    with pytest.raises(requests.HTTPError):
+        client.create_page("My Page", "MYSPACE", "100", "<p>body</p>")
+
+    assert session_mock.request.call_count == 1
 
 
 # --- _resolve_space_id ---

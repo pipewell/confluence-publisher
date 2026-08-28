@@ -84,6 +84,15 @@ class ConfluenceClient:
         response.raise_for_status()
         return response
 
+    def _request_no_retry(self, method: str, url: str, **kwargs: Any) -> requests.Response:
+        """Like _request but never retries. Used for non-idempotent calls (page
+        creation) where a retry after a lost response could create a duplicate
+        page rather than just repeating a safe read or a versioned write."""
+        kwargs.setdefault("timeout", 30)
+        response = self._session.request(method, url, **kwargs)
+        response.raise_for_status()
+        return response
+
     # --- Page read / write ---
 
     def get_page(self, page_id: str) -> dict[str, Any]:
@@ -154,7 +163,10 @@ class ConfluenceClient:
             }
             if parent_id:
                 payload["parentId"] = parent_id
-        data = self._request("POST", url, json=payload).json()
+        # Not retried: if the server creates the page but the response is lost
+        # (e.g. a 503 or timeout after the write succeeded), retrying this POST
+        # would create a second, duplicate page rather than repeat a safe read.
+        data = self._request_no_retry("POST", url, json=payload).json()
         return str(data["id"])
 
     def upload_attachment(
