@@ -41,6 +41,8 @@ class ConfluenceClient:
             raise ValueError(f"mode must be 'dc' or 'cloud', got '{mode}'")
         self.mode = mode
         self.base_url = base_url.rstrip("/")
+        if self.mode == "cloud" and self.base_url.endswith("/wiki"):
+            self.base_url = self.base_url[: -len("/wiki")]
         pem_path = _write_pem(cert_pem_b64) if cert_pem_b64 else None
         self._session = self._build_session(token, email, pem_path)
         self._space_id_cache: dict[str, str] = {}
