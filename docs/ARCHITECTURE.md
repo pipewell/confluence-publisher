@@ -70,9 +70,9 @@ class PageEntry:
     space_id: str | None
     parent_id: str | None
     title: str
-    last_published_hash: str | None      # written back after each successful publish
-    last_published_version: int | None   # used for edit-conflict detection
-    last_published_commit: str | None    # informational
+    last_published_hash: str | None  # written back after each successful publish
+    last_published_version: int | None  # used for edit-conflict detection
+    last_published_commit: str | None  # informational
 ```
 
 The manifest is the only persistent state. After a successful publish the tool writes back
