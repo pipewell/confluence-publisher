@@ -42,6 +42,8 @@ pages:
     confluence-email: ${{ vars.CONFLUENCE_EMAIL }}
 ```
 
+Using a fine-grained/scoped Atlassian API token? See [docs/ONBOARDING.md](https://github.com/pipewell/confluence-publisher/blob/main/docs/ONBOARDING.md#fine-grained-scoped-api-tokens) — these are rejected on the direct tenant domain and need `confluence-cloud-id` set instead.
+
 ---
 
 ## What it does
