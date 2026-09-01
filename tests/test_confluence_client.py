@@ -169,7 +169,10 @@ def test_resolve_space_id_gateway_routing():
         client._resolve_space_id("MYSPACE")
 
     url = mock_req.call_args[0][1]
-    assert url == "https://api.atlassian.com/ex/confluence/tenant-123/api/v2/spaces?keys=MYSPACE&limit=1"
+    assert (
+        url
+        == "https://api.atlassian.com/ex/confluence/tenant-123/api/v2/spaces?keys=MYSPACE&limit=1"
+    )
     assert "/wiki" not in url
 
 
@@ -238,7 +241,10 @@ def test_upload_attachment_cloud_gateway_routing():
         client.upload_attachment("123", "fig.png", b"\x89PNG", "image/png")
 
     url = mock_req.call_args[0][1]
-    assert url == "https://api.atlassian.com/ex/confluence/tenant-123/rest/api/content/123/child/attachment"
+    assert (
+        url
+        == "https://api.atlassian.com/ex/confluence/tenant-123/rest/api/content/123/child/attachment"
+    )
     assert "/wiki" not in url
 
 
