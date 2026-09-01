@@ -25,6 +25,7 @@ def _build_client() -> ConfluenceClient:
     mode = os.environ.get("CONFLUENCE_MODE", "").lower()
     email = os.environ.get("CONFLUENCE_EMAIL")
     cert_pem_b64 = os.environ.get("CONFLUENCE_CERT_PEM")
+    cloud_id = os.environ.get("CONFLUENCE_CLOUD_ID") or None
 
     missing = [
         k
@@ -44,6 +45,7 @@ def _build_client() -> ConfluenceClient:
         mode=mode,
         email=email,
         cert_pem_b64=cert_pem_b64,
+        cloud_id=cloud_id,
     )
 
 
