@@ -33,6 +33,14 @@ inputs:
     description: 'Base64-encoded PEM certificate for DC mTLS; leave blank for Cloud'
     required: false
     default: ''
+  confluence-cloud-id:
+    description: >
+      Confluence Cloud tenant ID (Cloud only). Set this if your Atlassian org issues
+      fine-grained/scoped API tokens -- these are rejected on the direct tenant domain
+      and must be routed through Atlassian's API gateway by cloud ID instead. Leave
+      blank to use the direct domain (default, works with classic unrestricted tokens).
+    required: false
+    default: ''
 
   # Publish behaviour
   repo-root:
@@ -111,6 +119,7 @@ runs:
         CONFLUENCE_EMAIL: ${{ inputs.confluence-email }}
         CONFLUENCE_API_TOKEN: ${{ inputs.confluence-api-token }}
         CONFLUENCE_CERT_PEM: ${{ inputs.confluence-cert-pem }}
+        CONFLUENCE_CLOUD_ID: ${{ inputs.confluence-cloud-id }}
         MMDC_PUPPETEER_CFG: ${{ runner.temp }}/puppeteer.json
       run: |
         set +e
