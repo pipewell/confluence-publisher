@@ -44,26 +44,6 @@ In your repository, go to **Settings > Secrets and variables > Actions**.
 | `CONFLUENCE_BASE_URL` | `https://your-org.atlassian.net` | No trailing slash |
 | `CONFLUENCE_MODE` | `cloud` | Use `dc` for Data Center |
 | `CONFLUENCE_EMAIL` | `your.name@example.com` | Cloud only; omit for DC |
-| `CONFLUENCE_CLOUD_ID` | `d14306f1-5802-4283-834c-8a799a89321a` | Cloud only; see "Fine-grained/scoped API tokens" below. Leave unset unless your token needs it |
-
-### Fine-grained/scoped API tokens
-
-Some Atlassian orgs issue fine-grained (scoped) API tokens instead of classic
-unrestricted ones -- or block classic tokens entirely via an org-wide policy. Scoped
-tokens are rejected with a `401 Unauthorized` when called against your site's direct
-domain (`https://your-org.atlassian.net/...`); they only work routed through
-Atlassian's API gateway by tenant ID instead of domain name.
-
-If publishing fails with a 401 despite correct credentials and space permissions, set
-`CONFLUENCE_CLOUD_ID` to your site's cloud ID:
-
-```bash
-curl -s https://your-org.atlassian.net/_edge/tenant_info
-```
-
-This is an unauthenticated endpoint; the response is `{"cloudId": "..."}`. Once set,
-all Cloud API calls route through `https://api.atlassian.com/ex/confluence/{cloudId}/...`
-instead of the direct domain.
 
 ---
 
@@ -259,5 +239,4 @@ the `publish` job, check the Install Mermaid CLI step in the workflow log.
 - Confirm `CONFLUENCE_BASE_URL` has no trailing slash
 - Verify the API token has not expired
 - For Cloud: ensure `CONFLUENCE_EMAIL` matches the Atlassian account that owns the token
-- For Cloud: if the token is fine-grained/scoped, set `CONFLUENCE_CLOUD_ID` (see "Fine-grained/scoped API tokens" above) -- scoped tokens 401 on the direct domain regardless of permissions
 - For DC: confirm the Personal Access Token has write access to the target space
