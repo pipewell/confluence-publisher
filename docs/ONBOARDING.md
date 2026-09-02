@@ -142,12 +142,35 @@ the existing pages rather than creating new ones.
 ### How manifest write-back works
 
 After publishing, the action commits the updated manifest directly to the branch using the
-GitHub Contents API. This requires no extra configuration in most repositories.
+GitHub Contents API. This requires the workflow's token to have write access -- if your
+repository (or org) defaults GITHUB_TOKEN to read-only, add a `permissions:` block to the
+job:
+
+```yaml
+jobs:
+  publish:
+    permissions:
+      contents: write
+      pull-requests: write
+```
+
+Without this, both the direct commit and the PR fallback below fail with
+`Write access to repository not granted`.
 
 If your repository has branch protection on `main` that requires pull requests, the direct
-commit will be blocked. The action will then open a PR automatically. **Merge that PR
+commit will be blocked even with write access. The action will then open a PR automatically,
+on a branch named `manifest-writeback-<timestamp>` by default. **Merge that PR
 promptly** -- until it is merged, the next publish run will not have the new page IDs and
 may attempt to re-create pages that already exist.
+
+If your org enforces a branch-naming ruleset, that fallback branch name may itself be
+rejected (`Branch name must match a given regex pattern`). Set `writeback-branch-prefix` to
+something that satisfies your pattern, e.g.:
+
+```yaml
+    with:
+      writeback-branch-prefix: 'chore/no-ticket-manifest-writeback-'
+```
 
 To avoid the PR fallback entirely, grant `github-actions[bot]` bypass permission on the
 branch protection rule:
@@ -244,6 +267,21 @@ The manifest PR has not been merged yet. The page IDs are not on `main`, so the 
 to re-create pages that already exist in Confluence. Merge the manifest PR first, then re-run
 the publish workflow. To prevent this in future, grant `github-actions[bot]` bypass permission
 on the branch protection rule as described in Step 5.
+
+**`Write access to repository not granted` in the "Write back manifest" step**
+
+The workflow's token has read-only access. Add `permissions: contents: write` (and
+`pull-requests: write` for the PR fallback) to the job -- see "How manifest write-back works"
+above.
+
+**`Branch name must match a given regex pattern` in the "Write back manifest" step**
+
+Your org enforces a branch-naming ruleset that the default `manifest-writeback-<timestamp>`
+fallback branch name doesn't satisfy. Set `writeback-branch-prefix` to a prefix that matches
+your pattern -- see "How manifest write-back works" above. This failure only blocks the
+write-back step; the actual Confluence publish already succeeded, so no content is lost --
+but the manifest may need `page_id` values recorded manually for any newly created pages
+until write-back succeeds.
 
 **`page_id not found` on validate-manifest**
 
