@@ -49,16 +49,16 @@ pages:
     page_id: '327722'
     title: Manifest Specification
     last_published_hash: 
-      1e5ff5bb5e1b13529cbe125b9692f64b5929cfc40327e1a348aa9e6587d384b6
-    last_published_version: 4
-    last_published_commit: '1938101'
+      0e0a73a126511bd8d58aed9c6690d047d62a31c2a77b017793e4f6dba84eeddb
+    last_published_version: 5
+    last_published_commit: '87c17ac'
   docs/ONBOARDING.md:
     title: Onboarding Guide
     page_id: '327995'
     last_published_hash: 
-      06d5942cec0fb024654afcc3a0f4029e362997fab7a1138a20436c2b46c0477f
-    last_published_version: 7
-    last_published_commit: ae2a86b
+      a1151deb67bce4afb130289c90687c22c078bc6077a70642b3caca831454a30e
+    last_published_version: 8
+    last_published_commit: 87c17ac
   test-docs/hello-world.md:
     page_id: '327687'
     title: Hello World (confluence-publisher test)
