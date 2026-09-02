@@ -294,6 +294,12 @@ def test_build_banner_escapes_path():
     assert "&lt;special&gt;" in banner
 
 
+def test_build_banner_includes_tool_attribution():
+    banner = build_banner("docs/arch.md", "abc1234")
+    assert "confluence-publisher</a> v" in banner
+    assert "github.com/pipewell/confluence-publisher" in banner
+
+
 # --- convert() ---
 
 

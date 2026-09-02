@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import logging
 from dataclasses import dataclass, field
+from importlib.metadata import PackageNotFoundError, version
 from pathlib import PurePosixPath
 
 from mistletoe import Document
@@ -244,6 +245,13 @@ def _resolve_path(source_dir: str, rel_path: str) -> str:
     return "/".join(parts)
 
 
+def _tool_version() -> str:
+    try:
+        return version("pipewell-confluence-publisher")
+    except PackageNotFoundError:
+        return "dev"
+
+
 def build_banner(source_path: str, commit_sha: str) -> str:
     return (
         f'<ac:structured-macro ac:name="info">'
@@ -251,7 +259,9 @@ def build_banner(source_path: str, commit_sha: str) -> str:
         f"<p>This page is auto-generated from GitHub. "
         f"Manual edits will be overwritten on next publish.<br/>"
         f"Source: <code>{_escape(source_path)}</code> "
-        f"@ <code>{_escape(commit_sha)}</code></p>"
+        f"@ <code>{_escape(commit_sha)}</code><br/>"
+        f'Published with <a href="https://github.com/pipewell/confluence-publisher">'
+        f"confluence-publisher</a> v{_tool_version()}.</p>"
         f"</ac:rich-text-body>"
         f"</ac:structured-macro>"
     )
