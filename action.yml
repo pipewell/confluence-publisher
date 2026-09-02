@@ -86,6 +86,14 @@ inputs:
       Defaults to the built-in GITHUB_TOKEN.
     required: false
     default: ''
+  writeback-branch-prefix:
+    description: >
+      Prefix for the fallback branch name used to open a manifest write-back PR when a
+      direct commit is blocked (e.g. by branch protection). If your org enforces a
+      branch-naming ruleset, set this to something that satisfies it, e.g.
+      'chore/no-ticket-manifest-writeback-'. Defaults to 'manifest-writeback-'.
+    required: false
+    default: 'manifest-writeback-'
 
 outputs:
   result:
@@ -198,7 +206,7 @@ runs:
         # IMPORTANT: until this PR is merged, the next publish run will attempt to
         # re-create the same pages. Merge it promptly to avoid duplicates.
         echo "Direct commit blocked by branch protection — opening a PR instead."
-        BRANCH="manifest-writeback-$(date +%s)"
+        BRANCH="${{ inputs.writeback-branch-prefix }}$(date +%s)"
         git -C "$GITHUB_WORKSPACE" config user.name "github-actions[bot]"
         git -C "$GITHUB_WORKSPACE" config user.email "41898282+github-actions[bot]@users.noreply.github.com"
         git -C "$GITHUB_WORKSPACE" checkout -b "$BRANCH"
