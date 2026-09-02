@@ -59,6 +59,12 @@ inputs:
     description: 'Exit non-zero when a Confluence page was manually edited since last publish'
     required: false
     default: 'false'
+  no-attribution:
+    description: >
+      Omit the "Published with confluence-publisher" line from the auto-generated banner.
+      Overrides defaults.attribution in the manifest; always wins toward off.
+    required: false
+    default: 'false'
 
   # Tooling
   install-mermaid:
@@ -126,8 +132,9 @@ runs:
         CMD=(confluence-publisher "${{ inputs.operation }}" --repo-root "${{ inputs.repo-root }}")
 
         if [ "${{ inputs.operation }}" = "sync" ]; then
-          [ "${{ inputs.dry-run }}" = "true" ]         && CMD+=(--dry-run)
-          [ "${{ inputs.strict-conflicts }}" = "true" ] && CMD+=(--strict-conflicts)
+          [ "${{ inputs.dry-run }}" = "true" ]          && CMD+=(--dry-run)
+          [ "${{ inputs.strict-conflicts }}" = "true" ]  && CMD+=(--strict-conflicts)
+          [ "${{ inputs.no-attribution }}" = "true" ]    && CMD+=(--no-attribution)
 
           if [ -n "${{ inputs.changed-files }}" ]; then
             read -ra FILES <<< "${{ inputs.changed-files }}"

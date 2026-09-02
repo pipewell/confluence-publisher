@@ -77,8 +77,22 @@ def main():
         "but the build fails so the team is notified of the overwrite."
     ),
 )
+@click.option(
+    "--no-attribution",
+    is_flag=True,
+    help=(
+        "Omit the 'Published with confluence-publisher' line from the auto-generated banner. "
+        "Overrides defaults.attribution in the manifest; always wins toward off."
+    ),
+)
 @click.option("--repo-root", default=".", show_default=True, help="Repository root directory.")
-def sync(changed_files: tuple[str, ...], dry_run: bool, strict_conflicts: bool, repo_root: str):
+def sync(
+    changed_files: tuple[str, ...],
+    dry_run: bool,
+    strict_conflicts: bool,
+    no_attribution: bool,
+    repo_root: str,
+):
     """Publish changed Markdown files to Confluence."""
     root = Path(repo_root).resolve()
     manifest = load_manifest(root)
@@ -100,6 +114,7 @@ def sync(changed_files: tuple[str, ...], dry_run: bool, strict_conflicts: bool, 
         repo_root=root,
         dry_run=dry_run,
         strict_conflicts=strict_conflicts,
+        no_attribution=no_attribution,
     )
 
     for result in summary.results:

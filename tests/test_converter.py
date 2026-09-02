@@ -300,6 +300,15 @@ def test_build_banner_includes_tool_attribution():
     assert "github.com/pipewell/confluence-publisher" in banner
 
 
+def test_build_banner_attribution_can_be_disabled():
+    banner = build_banner("docs/arch.md", "abc1234", attribution=False)
+    assert "confluence-publisher</a>" not in banner
+    assert "github.com/pipewell/confluence-publisher" not in banner
+    # Rest of the banner is untouched.
+    assert "docs/arch.md" in banner
+    assert "abc1234" in banner
+
+
 # --- convert() ---
 
 
@@ -322,6 +331,11 @@ def test_convert_banner_prepended():
 def test_convert_collects_images():
     result = convert("![fig](images/fig.png)\n", "docs/arch.md", "sha")
     assert result.images == ["docs/images/fig.png"]
+
+
+def test_convert_attribution_can_be_disabled():
+    result = convert("para\n", "f.md", "sha", attribution=False)
+    assert "confluence-publisher</a>" not in result.full_body
 
 
 def test_convert_collects_mermaid():

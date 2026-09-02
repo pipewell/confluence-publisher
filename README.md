@@ -55,6 +55,7 @@ Using a fine-grained/scoped Atlassian API token? See [docs/ONBOARDING.md](https:
 - Uploads local images and Mermaid diagrams as page attachments
 - Detects edit conflicts (Confluence version ahead of last published) and warns or fails
 - Stores the Git commit SHA in the Confluence version message for traceability
+- Adds an auto-generated banner to each page (source file, commit SHA, tool attribution) -- configurable via `defaults.attribution` in the manifest or `--no-attribution`
 - Treats missing images, Mermaid render failures, and upload errors as hard build failures
 
 ---

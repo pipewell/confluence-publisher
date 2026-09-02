@@ -214,6 +214,18 @@ overwritten; the non-zero exit code surfaces the conflict to the PR author.
 
 ---
 
+## Attribution banner
+
+Every published page gets a small auto-generated info banner noting it's managed from GitHub,
+the source file, and the commit SHA -- plus a "Published with confluence-publisher" line
+crediting the tool, by default.
+
+To omit that last line, set `attribution: false` under `defaults` in the manifest, or force it
+off per-run with `--no-attribution` on the `sync` command / `no-attribution: 'true'` on the
+action input (the CLI flag always wins toward off, regardless of the manifest setting).
+
+---
+
 ## Failure and retry behaviour
 
 All failures are hard errors -- the build exits non-zero. There are no silent failures.
