@@ -55,8 +55,7 @@ pages:
   docs/ONBOARDING.md:
     title: Onboarding Guide
     page_id: '327995'
-    last_published_hash: 
-      a1151deb67bce4afb130289c90687c22c078bc6077a70642b3caca831454a30e
+    last_published_hash: null
     last_published_version: 8
     last_published_commit: 87c17ac
   test-docs/hello-world.md:
