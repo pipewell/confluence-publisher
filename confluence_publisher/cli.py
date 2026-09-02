@@ -56,6 +56,17 @@ def _get_commit_sha() -> str:
         return os.environ.get("GITHUB_SHA", "unknown")[:7]
 
 
+def _get_repo_url() -> str | None:
+    """Derive the repo's GitHub URL from Actions-provided env vars, for linking the
+    banner's source path back to the file. None outside GitHub Actions (e.g. local
+    CLI use) -- the banner falls back to plain text rather than a broken link."""
+    repository = os.environ.get("GITHUB_REPOSITORY")
+    if not repository:
+        return None
+    server_url = os.environ.get("GITHUB_SERVER_URL", "https://github.com")
+    return f"{server_url.rstrip('/')}/{repository}"
+
+
 @click.group()
 def main():
     pass
@@ -115,6 +126,7 @@ def sync(
         dry_run=dry_run,
         strict_conflicts=strict_conflicts,
         no_attribution=no_attribution,
+        repo_url=_get_repo_url(),
     )
 
     for result in summary.results:
