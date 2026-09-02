@@ -11,6 +11,7 @@ from confluence_publisher.converter import (
     build_banner,
     content_hash,
     convert,
+    preserve_inline_comments,
 )
 
 
@@ -338,6 +339,72 @@ def test_build_banner_source_link_strips_trailing_slash_on_repo_url():
     )
     assert "confluence-publisher/blob/sha/docs/arch.md" in banner
     assert "confluence-publisher//blob" not in banner
+
+
+# --- preserve_inline_comments() ---
+
+
+def test_preserve_inline_comments_reanchors_unchanged_text():
+    old_body = '<ul><li><p><ac:inline-comment-marker ac:ref="abc-123">Heading conversion</ac:inline-comment-marker></p></li></ul>'
+    new_body = "<ul><li><p>Heading conversion</p></li></ul>"
+    result = preserve_inline_comments(old_body, new_body)
+    assert (
+        '<ac:inline-comment-marker ac:ref="abc-123">Heading conversion</ac:inline-comment-marker>'
+        in result
+    )
+
+
+def test_preserve_inline_comments_skips_when_text_changed():
+    old_body = (
+        '<p><ac:inline-comment-marker ac:ref="abc-123">old wording</ac:inline-comment-marker></p>'
+    )
+    new_body = "<p>new wording</p>"
+    result = preserve_inline_comments(old_body, new_body)
+    assert result == new_body
+    assert "ac:inline-comment-marker" not in result
+
+
+def test_preserve_inline_comments_skips_when_text_ambiguous():
+    old_body = (
+        '<p><ac:inline-comment-marker ac:ref="abc-123">click here</ac:inline-comment-marker></p>'
+    )
+    new_body = "<p>click here</p><p>click here</p>"
+    result = preserve_inline_comments(old_body, new_body)
+    assert result == new_body
+    assert "ac:inline-comment-marker" not in result
+
+
+def test_preserve_inline_comments_skips_nested_markup():
+    old_body = '<p><ac:inline-comment-marker ac:ref="abc-123"><strong>bold text</strong></ac:inline-comment-marker></p>'
+    new_body = "<p><strong>bold text</strong></p>"
+    result = preserve_inline_comments(old_body, new_body)
+    assert result == new_body
+    assert "ac:inline-comment-marker" not in result
+
+
+def test_preserve_inline_comments_no_markers_in_old_body():
+    old_body = "<p>plain text</p>"
+    new_body = "<p>plain text</p>"
+    assert preserve_inline_comments(old_body, new_body) == new_body
+
+
+def test_preserve_inline_comments_multiple_markers():
+    old_body = (
+        '<p><ac:inline-comment-marker ac:ref="bb1b3a54-4a2e-4d4f-8585-5030daa5ecb9">first'
+        "</ac:inline-comment-marker></p>"
+        '<p><ac:inline-comment-marker ac:ref="cc2c4b65-5b3f-5e5f-9696-6141ebb6fdca">second'
+        "</ac:inline-comment-marker></p>"
+    )
+    new_body = "<p>first</p><p>second</p>"
+    result = preserve_inline_comments(old_body, new_body)
+    assert (
+        '<ac:inline-comment-marker ac:ref="bb1b3a54-4a2e-4d4f-8585-5030daa5ecb9">first'
+        "</ac:inline-comment-marker>" in result
+    )
+    assert (
+        '<ac:inline-comment-marker ac:ref="cc2c4b65-5b3f-5e5f-9696-6141ebb6fdca">second'
+        "</ac:inline-comment-marker>" in result
+    )
 
 
 # --- convert() ---

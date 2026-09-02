@@ -249,6 +249,28 @@ action input (the CLI flag always wins toward off, regardless of the manifest se
 
 ---
 
+## Inline comment preservation
+
+Confluence anchors an inline comment to specific text by embedding a marker directly in the
+page body. Since every publish replaces the full body, this used to orphan every inline
+comment unconditionally (still true if you're on an older version).
+
+As of v1.3.0, a comment survives a republish automatically **if the exact commented text is
+still present, unchanged, and appears exactly once** in the newly-published content. No
+configuration needed -- this is always on, since it can only help (worst case is today's
+behaviour: the thread survives in Confluence but is detached from the text).
+
+It won't survive if:
+- the commented text was reworded or removed
+- the same text now appears more than once on the page (ambiguous which occurrence to anchor)
+- the comment was on formatted text specifically (e.g. just the bold word in a sentence, not
+  the whole line) rather than plain text
+
+Footer/page-level comments are unaffected either way -- they're stored separately from the
+body and this tool never touches them.
+
+---
+
 ## Failure and retry behaviour
 
 All failures are hard errors -- the build exits non-zero. There are no silent failures.

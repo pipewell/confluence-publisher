@@ -56,6 +56,7 @@ Using a fine-grained/scoped Atlassian API token? See [docs/ONBOARDING.md](https:
 - Detects edit conflicts (Confluence version ahead of last published) and warns or fails
 - Stores the Git commit SHA in the Confluence version message for traceability
 - Adds an auto-generated banner to each page (source file, commit SHA, tool attribution) -- configurable via `defaults.attribution` in the manifest or `--no-attribution`
+- Best-effort preserves inline comment anchors across republish, when the commented text is unchanged (see "Known limitations")
 - Treats missing images, Mermaid render failures, and upload errors as hard build failures
 
 ---
@@ -114,7 +115,7 @@ This tool is intentionally narrow:
 
 ## Known limitations
 
-- **Inline comments lose their anchor on republish.** Confluence anchors an inline comment by embedding markup directly in the page body around the highlighted text. Every publish replaces the full page body with freshly-converted Markdown, so that anchor markup doesn't survive -- the comment thread is typically detached rather than deleted, but it no longer points at any specific text. Footer/page-level comments are unaffected, since they're stored separately from the body and never touched by this tool. Tracked in [#11](https://github.com/pipewell/confluence-publisher/issues/11).
+- **Inline comments can lose their anchor on republish, depending on what changed.** Confluence anchors an inline comment by embedding markup directly in the page body around the highlighted text, and every publish replaces the full page body with freshly-converted Markdown. Since v1.3.0, the tool re-anchors a comment automatically **if the exact commented text still appears, unchanged and unambiguous, in the new body** -- confirmed working via live testing against real Confluence pages. If the commented text was reworded, moved into a context that makes it ambiguous (appears more than once), or the comment was on formatted text (e.g. specifically on bold/italic, not the whole line), the anchor still doesn't survive -- the comment thread is typically detached rather than deleted, but no longer points at any specific text. Footer/page-level comments are unaffected either way, since they're stored separately from the body and never touched by this tool. Background in [#11](https://github.com/pipewell/confluence-publisher/issues/11).
 
 ---
 

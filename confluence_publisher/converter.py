@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import logging
+import re
 from dataclasses import dataclass, field
 from importlib.metadata import PackageNotFoundError, version
 from pathlib import PurePosixPath
@@ -285,6 +286,34 @@ def build_banner(
 
 def content_hash(body: str) -> str:
     return hashlib.sha256(body.encode()).hexdigest()
+
+
+_INLINE_COMMENT_MARKER_RE = re.compile(
+    r'<ac:inline-comment-marker ac:ref="([\w-]+)">(.*?)</ac:inline-comment-marker>',
+    re.DOTALL,
+)
+
+
+def preserve_inline_comments(old_body: str, new_body: str) -> str:
+    """Best-effort: re-anchor inline comments from old_body onto matching text in
+    new_body, so a republish doesn't orphan them. Confluence reconnects an inline
+    comment thread to its original position as long as the same ac:ref reappears
+    in the body (confirmed by live testing, not just documentation).
+
+    Only plain-text anchors (no nested markup, e.g. a comment on bold/italic text)
+    are attempted, and only when the anchored text appears exactly once in
+    new_body -- comments on text that moved, changed, or is now ambiguous can't be
+    reliably relocated and are left as-is, which is exactly today's behaviour
+    (the comment thread survives in Confluence but is no longer anchored to
+    specific text). This never makes things worse than the status quo.
+    """
+    for ref, text in _INLINE_COMMENT_MARKER_RE.findall(old_body):
+        if "<" in text:
+            continue  # nested markup inside the anchor -- unsafe to relocate
+        if new_body.count(text) == 1:
+            marker = f'<ac:inline-comment-marker ac:ref="{ref}">{text}</ac:inline-comment-marker>'
+            new_body = new_body.replace(text, marker, 1)
+    return new_body
 
 
 def convert(

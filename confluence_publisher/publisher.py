@@ -10,7 +10,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from .confluence_client import ConfluenceClient
-from .converter import ConversionError, content_hash, convert
+from .converter import ConversionError, content_hash, convert, preserve_inline_comments
 from .manifest import Manifest, PageEntry, save_manifest
 
 logger = logging.getLogger(__name__)
@@ -384,11 +384,12 @@ def publish_pages(
             return
 
         new_version = current_version + 1
+        body_to_publish = preserve_inline_comments(current["body"], result.full_body)
         try:
             client.update_page(
                 page_id=entry.page_id,
                 title=entry.title,
-                body=result.full_body,
+                body=body_to_publish,
                 version=new_version,
                 commit_sha=commit_sha,
             )
