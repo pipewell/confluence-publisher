@@ -309,6 +309,37 @@ def test_build_banner_attribution_can_be_disabled():
     assert "abc1234" in banner
 
 
+def test_build_banner_source_is_plain_text_without_repo_url():
+    banner = build_banner("docs/arch.md", "abc1234")
+    assert "<code>docs/arch.md</code>" in banner
+    assert "<a href=" not in banner.split("Published with")[0]
+
+
+def test_build_banner_source_links_to_file_when_repo_url_given():
+    banner = build_banner(
+        "docs/arch.md", "abc1234", repo_url="https://github.com/pipewell/confluence-publisher"
+    )
+    assert (
+        '<a href="https://github.com/pipewell/confluence-publisher/blob/abc1234/docs/arch.md">'
+        "<code>docs/arch.md</code></a>" in banner
+    )
+
+
+def test_build_banner_source_link_escapes_path():
+    banner = build_banner(
+        "docs/<special>.md", "sha", repo_url="https://github.com/pipewell/confluence-publisher"
+    )
+    assert "&lt;special&gt;" in banner
+
+
+def test_build_banner_source_link_strips_trailing_slash_on_repo_url():
+    banner = build_banner(
+        "docs/arch.md", "sha", repo_url="https://github.com/pipewell/confluence-publisher/"
+    )
+    assert "confluence-publisher/blob/sha/docs/arch.md" in banner
+    assert "confluence-publisher//blob" not in banner
+
+
 # --- convert() ---
 
 
@@ -336,6 +367,11 @@ def test_convert_collects_images():
 def test_convert_attribution_can_be_disabled():
     result = convert("para\n", "f.md", "sha", attribution=False)
     assert "confluence-publisher</a>" not in result.full_body
+
+
+def test_convert_passes_repo_url_to_banner():
+    result = convert("para\n", "f.md", "sha", repo_url="https://github.com/pipewell/x")
+    assert '<a href="https://github.com/pipewell/x/blob/sha/f.md">' in result.full_body
 
 
 def test_convert_collects_mermaid():

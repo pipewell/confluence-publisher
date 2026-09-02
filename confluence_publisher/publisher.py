@@ -140,6 +140,7 @@ def publish_pages(
     dry_run: bool = False,
     strict_conflicts: bool = False,
     no_attribution: bool = False,
+    repo_url: str | None = None,
 ) -> PublishSummary:
     summary = PublishSummary()
 
@@ -165,7 +166,12 @@ def publish_pages(
         try:
             text = full_path.read_text(encoding="utf-8")
             result = convert(
-                text, file_path, commit_sha, page_id_map=page_id_map, attribution=attribution
+                text,
+                file_path,
+                commit_sha,
+                page_id_map=page_id_map,
+                attribution=attribution,
+                repo_url=repo_url,
             )
         except ConversionError as exc:
             summary.results.append(

@@ -597,6 +597,29 @@ def test_cli_override_wins_even_when_manifest_already_true(tmp_path):
     assert "confluence-publisher</a>" not in kwargs["body"]
 
 
+def test_repo_url_links_source_path_in_banner(tmp_path):
+    root, manifest = make_repo(tmp_path)
+    client = make_client()
+    publish_pages(
+        manifest,
+        ["docs/arch.md"],
+        client,
+        "sha",
+        root,
+        repo_url="https://github.com/pipewell/x",
+    )
+    _, kwargs = client.update_page.call_args
+    assert '<a href="https://github.com/pipewell/x/blob/sha/docs/arch.md">' in kwargs["body"]
+
+
+def test_no_repo_url_leaves_source_as_plain_text(tmp_path):
+    root, manifest = make_repo(tmp_path)
+    client = make_client()
+    publish_pages(manifest, ["docs/arch.md"], client, "sha", root)
+    _, kwargs = client.update_page.call_args
+    assert "<code>docs/arch.md</code>" in kwargs["body"]
+
+
 # --- _render_mermaid ---
 
 
