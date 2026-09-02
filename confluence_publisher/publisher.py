@@ -139,11 +139,16 @@ def publish_pages(
     repo_root: Path,
     dry_run: bool = False,
     strict_conflicts: bool = False,
+    no_attribution: bool = False,
 ) -> PublishSummary:
     summary = PublishSummary()
 
     # Build lookup map for internal link rewriting
     page_id_map = {fp: entry.page_id for fp, entry in manifest.pages.items() if entry.page_id}
+
+    # Manifest can opt out repo-wide (defaults.attribution: false); --no-attribution
+    # is a one-way CLI override that always wins toward "off".
+    attribution = bool(manifest.defaults.get("attribution", True)) and not no_attribution
 
     def _process_file(file_path: str, entry: PageEntry) -> None:
         full_path = repo_root / file_path
@@ -159,7 +164,9 @@ def publish_pages(
 
         try:
             text = full_path.read_text(encoding="utf-8")
-            result = convert(text, file_path, commit_sha, page_id_map=page_id_map)
+            result = convert(
+                text, file_path, commit_sha, page_id_map=page_id_map, attribution=attribution
+            )
         except ConversionError as exc:
             summary.results.append(
                 PageResult(

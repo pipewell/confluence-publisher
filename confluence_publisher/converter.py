@@ -252,16 +252,20 @@ def _tool_version() -> str:
         return "dev"
 
 
-def build_banner(source_path: str, commit_sha: str) -> str:
+def build_banner(source_path: str, commit_sha: str, attribution: bool = True) -> str:
+    attribution_line = (
+        f'<br/>Published with <a href="https://github.com/pipewell/confluence-publisher">'
+        f"confluence-publisher</a> v{_tool_version()}."
+        if attribution
+        else ""
+    )
     return (
         f'<ac:structured-macro ac:name="info">'
         f"<ac:rich-text-body>"
         f"<p>This page is auto-generated from GitHub. "
         f"Manual edits will be overwritten on next publish.<br/>"
         f"Source: <code>{_escape(source_path)}</code> "
-        f"@ <code>{_escape(commit_sha)}</code><br/>"
-        f'Published with <a href="https://github.com/pipewell/confluence-publisher">'
-        f"confluence-publisher</a> v{_tool_version()}.</p>"
+        f"@ <code>{_escape(commit_sha)}</code>{attribution_line}</p>"
         f"</ac:rich-text-body>"
         f"</ac:structured-macro>"
     )
@@ -276,6 +280,7 @@ def convert(
     source_path: str,
     commit_sha: str,
     page_id_map: dict[str, str] | None = None,
+    attribution: bool = True,
 ) -> ConversionResult:
     """Convert Markdown to Confluence Storage Format.
 
@@ -289,7 +294,7 @@ def convert(
         body = renderer.render(doc)
         images = list(renderer.images)
         mermaid_blocks = list(renderer.mermaid_blocks)
-    banner = build_banner(source_path, commit_sha)
+    banner = build_banner(source_path, commit_sha, attribution=attribution)
     return ConversionResult(
         body=body,
         full_body=banner + body,

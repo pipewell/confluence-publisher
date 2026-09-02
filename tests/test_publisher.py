@@ -560,6 +560,43 @@ def test_dry_run_does_not_save_manifest(tmp_path):
         mock_save.assert_not_called()
 
 
+# --- Attribution ---
+
+
+def test_attribution_included_by_default(tmp_path):
+    root, manifest = make_repo(tmp_path)
+    client = make_client()
+    publish_pages(manifest, ["docs/arch.md"], client, "sha", root)
+    _, kwargs = client.update_page.call_args
+    assert "confluence-publisher</a>" in kwargs["body"]
+
+
+def test_attribution_disabled_via_manifest_default(tmp_path):
+    root, manifest = make_repo(tmp_path)
+    manifest.defaults["attribution"] = False
+    client = make_client()
+    publish_pages(manifest, ["docs/arch.md"], client, "sha", root)
+    _, kwargs = client.update_page.call_args
+    assert "confluence-publisher</a>" not in kwargs["body"]
+
+
+def test_attribution_disabled_via_cli_override(tmp_path):
+    root, manifest = make_repo(tmp_path)
+    client = make_client()
+    publish_pages(manifest, ["docs/arch.md"], client, "sha", root, no_attribution=True)
+    _, kwargs = client.update_page.call_args
+    assert "confluence-publisher</a>" not in kwargs["body"]
+
+
+def test_cli_override_wins_even_when_manifest_already_true(tmp_path):
+    root, manifest = make_repo(tmp_path)
+    manifest.defaults["attribution"] = True
+    client = make_client()
+    publish_pages(manifest, ["docs/arch.md"], client, "sha", root, no_attribution=True)
+    _, kwargs = client.update_page.call_args
+    assert "confluence-publisher</a>" not in kwargs["body"]
+
+
 # --- _render_mermaid ---
 
 
