@@ -43,17 +43,10 @@ jobs:
     runs-on: ubuntu-latest
     needs: check
     steps:
-      - name: Generate write-back App token
-        id: app-token
-        uses: actions/create-github-app-token@v3
-        with:
-          app-id: ${{ secrets.APP_ID }}
-          private-key: ${{ secrets.APP_PRIVATE_KEY }}
-
       - uses: actions/checkout@v7
         with:
           fetch-depth: 2
-          token: ${{ steps.app-token.outputs.token }}
+          token: ${{ secrets.WRITEBACK_TOKEN }}
 
       - uses: actions/setup-python@v6
         with:
@@ -100,39 +93,12 @@ jobs:
 
       - name: Commit manifest state
         if: always()
-        env:
-          GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
           git config user.name "confluence-publisher-bot"
           git config user.email "noreply@github.com"
           git add confluence-manifest.yaml
-          if git diff --cached --quiet; then
-            echo "No new page IDs to write back."
-            exit 0
-          fi
-          git commit -m "chore: update confluence-manifest state [skip ci]"
-
-          # Direct push first -- works if branch protection ever allows it again.
-          if git push origin main 2>/dev/null; then
-            echo "Manifest committed directly."
-            exit 0
-          fi
-
-          # main requires a PR now (no bypass for anyone, including the repo owner).
-          # Open one and auto-merge it -- the owner's write-back token is exempt
-          # from the review-required ruleset, so this only waits on CI, same as
-          # any other required-status-check gate.
-          echo "Direct push blocked by branch protection -- opening a PR instead."
-          BRANCH="chore/manifest-writeback-$(date +%s)"
-          git checkout -b "$BRANCH"
-          git push origin "$BRANCH"
-          PR_URL=$(gh pr create \
-            --title "chore: update confluence-manifest state [skip ci]" \
-            --body "Automated manifest state update (new page IDs / publish hashes) from the last publish run. Auto-merges once required checks pass." \
-            --base main \
-            --head "$BRANCH")
-          echo "Opened $PR_URL"
-          gh pr merge "$PR_URL" --auto --squash
+          git diff --cached --quiet || git commit -m "chore: update confluence-manifest state [skip ci]"
+          git push
 
   validate:
     name: Validate manifest
