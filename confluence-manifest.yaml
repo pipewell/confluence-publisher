@@ -62,7 +62,6 @@ pages:
   test-docs/hello-world.md:
     page_id: '327687'
     title: Hello World (confluence-publisher test)
-    last_published_hash: 
-      d7db24520a28816d25bf3296222a68d5596e4e7f1bf9d4225e25bb54c6e5df19
+    last_published_hash: null
     last_published_version: 11
     last_published_commit: 40322be
