@@ -42,9 +42,9 @@ pages:
     page_id: '327702'
     title: Decisions & Open Questions
     last_published_hash: 
-      9ba9e2d5160cb5cd9fc96380fc70b3eeb724eea2a333d5b32a2b7df8cdb3b648
-    last_published_version: 3
-    last_published_commit: bd73b70
+      1d1ee18dff1d08128d7317d7a267c76f3e05420feff6e4052d14af352d110024
+    last_published_version: 4
+    last_published_commit: 3b279ec
   docs/MANIFEST_SPEC.md:
     page_id: '327722'
     title: Manifest Specification
