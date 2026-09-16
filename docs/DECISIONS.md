@@ -191,3 +191,42 @@ published (pages changed, any warnings)?
 
 **Recommendation:** Option B when bandwidth allows. The `examples/workflows/pr-preview.yml`
 workflow already posts a dry-run summary as a PR comment. **Not blocking.**
+
+---
+
+### OQ-06: Reduce or eliminate manifest write-back via Confluence-native state
+
+**Question:** Can page identity and content-hash tracking move out of the git-committed
+manifest and into Confluence itself, reducing or removing the operational fragility that
+D-11's write-back introduces (target-repo branch protection, `GITHUB_TOKEN`/PAT permission
+requirements, PR-fallback branch-naming conflicts, and similar friction discovered across
+several real rollouts)?
+
+**Context:** A comparable internal system for publishing GitHub docs elsewhere writes nothing
+back to its source repos at all, because its publishing target doesn't need a stable ID
+remembered anywhere the way a Confluence page does -- the file path is identity enough.
+Comparing this tool's design against that one made it clear that essentially all of the
+write-back-adjacent operational pain this tool has produced traces back to one requirement:
+D-11's need to persist `page_id`/`last_published_hash`/`last_published_version` in a
+git-committed file after every run.
+
+**Options:**
+- A: Keep write-back as the only mechanism. *(current behaviour, D-11)*
+- B: Store `last_published_hash` (and related metadata) as a Confluence content property on
+  the page itself, keyed by the already-known `page_id`, instead of in the manifest. Cuts
+  write-back frequency to "only when a page is first created," not every content change.
+  Doesn't touch how page identity is resolved.
+- C: Additionally resolve page identity via a Confluence label applied at page-creation time
+  and looked up via CQL search on later runs, instead of requiring a manifest-recorded
+  `page_id`. This would enable a manifest-free `auto_discover` mode for files that don't need
+  explicit title/space/parent overrides -- no write-back at all for those files, ever.
+
+**Recommendation:** Option B is low-risk and independently valuable regardless of C -- content
+properties are fetched by page ID, which is already known, so there's no new lookup-reliability
+question to resolve. Option C is a bigger change gated on an unverified assumption: whether CQL
+label search is reliably available via the API paths this tool already uses for both DC and
+Cloud, and whether search-index lag immediately after page creation risks duplicate-page
+creation (the same class of bug D-11's writeback already had to solve once, for a different
+reason). That assumption needs live verification against a real tenant before committing to C,
+not an assumption. **Not blocking** -- scoped in detail in
+[issue #34](https://github.com/pipewell/confluence-publisher/issues/34).
