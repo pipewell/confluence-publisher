@@ -102,6 +102,77 @@ pages:
     parent_id: '987654'        # overrides the default parent
 ```
 
+### Structuring `parent_id` for your docs tree
+
+A Confluence page has exactly **one** parent -- there's no equivalent of a file living in two
+folders at once. Beyond that single constraint, there's no limit on how many distinct
+`parent_id` values you use; pick whichever of these patterns matches your docs' shape:
+
+**Flat -- everything under one page.** Set `defaults.parent_id` once and give no page its own
+`parent_id`. Every published page becomes a direct child of the same parent. Simplest option,
+good for a small, unstructured set of docs.
+
+```yaml
+defaults:
+  space_id: ENG
+  parent_id: '123456'          # every page below nests directly under this one
+
+pages:
+  docs/architecture.md:
+    title: Architecture Overview
+  docs/runbook.md:
+    title: Operations Runbook
+```
+
+**Grouped -- a few named sections.** Override `parent_id` per page (or per small group of
+pages) to fan them out under different existing parents -- e.g. everything under `docs/adr/`
+nests under your team's "Architecture Decisions" page, while everything else stays under the
+default.
+
+```yaml
+defaults:
+  space_id: ENG
+  parent_id: '123456'          # default: top-level docs page
+
+pages:
+  docs/architecture.md:
+    title: Architecture Overview
+    # inherits defaults.parent_id: '123456'
+
+  docs/adr/adr-001-single-repo.md:
+    title: 'ADR-001: Single Repo'
+    parent_id: '789012'         # a different, existing "Architecture Decisions" page
+
+  docs/adr/adr-002-browser-driver.md:
+    title: 'ADR-002: Browser Driver Protocol'
+    parent_id: '789012'         # same ADR parent as above
+```
+
+**Nested -- a multi-level tree.** `parent_id` can point at *any* existing Confluence page, not
+just one you created by hand -- including a page this same manifest manages. Publish the parent
+page first (or already know its ID from a prior run), then point child entries at it to build a
+tree that mirrors your folder structure:
+
+```yaml
+pages:
+  docs/adr/index.md:
+    title: Architecture Decisions
+    page_id: '789012'            # this page already exists -- its ID is the parent below
+
+  docs/adr/adr-001-single-repo.md:
+    title: 'ADR-001: Single Repo'
+    parent_id: '789012'          # nests under the ADR index page above
+
+  docs/adr/adr-002-browser-driver.md:
+    title: 'ADR-002: Browser Driver Protocol'
+    parent_id: '789012'
+```
+
+Whichever pattern you use, **the `parent_id` value must be the ID of a page that already
+exists** in the target space -- the tool doesn't create parent pages implicitly. If you copy a
+`parent_id` from an old page that's since been deleted or moved, every page pointed at it will
+fail to publish with a `400 Bad Request` on create -- see Troubleshooting below.
+
 ---
 
 ## Step 4: Add the workflow files
@@ -309,6 +380,16 @@ until write-back succeeds.
 
 The Confluence page was deleted or moved. Either restore it in Confluence or remove the
 `page_id` from the manifest entry so the page is recreated automatically on the next push.
+
+**`Failed to create page: 400 Bad Request` on a new page**
+
+The most common cause is `parent_id` (from `defaults.parent_id` or a per-page override)
+pointing at a page that no longer exists -- deleted, moved, or copied from an old manifest.
+Confluence rejects the create outright rather than publishing without a parent. Open the
+intended parent page in Confluence and confirm its ID (see "Finding a page ID" above), fix the
+`parent_id` in the manifest, and push again. If several pages share the same `parent_id` and
+all fail together, that's a strong signal the shared parent ID itself is the problem, not the
+individual pages -- check it first before investigating each page separately.
 
 **Conversion error: unsupported Markdown syntax**
 
